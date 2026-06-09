@@ -1,170 +1,174 @@
 # AGENTS.md
 
+# Habit Builder App
+
 ## Project Overview
 
-Internship Task Manager is a beginner-friendly task management application designed to teach software development fundamentals through practical implementation.
+Habit Builder App helps users develop positive habits by tracking daily consistency, streaks, and completion rates.
 
-This document provides guidance for contributors, developers, and AI coding agents working on this repository.
-
----
-
-## Project Goals
-
-1. Maintain clean and readable code.
-2. Prioritize simplicity over complexity.
-3. Follow modular design principles.
-4. Keep the project beginner-friendly.
-5. Document all major changes.
+This project is intended as both a productivity tool and a learning project for software development fundamentals.
 
 ---
 
-## Architecture
+## Objectives
+
+* Help users build habits through consistent tracking.
+* Provide meaningful progress insights.
+* Maintain a simple and intuitive user experience.
+* Serve as a beginner-friendly codebase.
+
+---
+
+## System Architecture
 
 ```text
 User
  ↓
-Application Logic
+Habit Management Layer
+ ↓
+Progress Tracking Layer
  ↓
 Storage Layer
  ↓
-JSON File
-```
-
-### Components
-
-#### Main Application
-
-Responsible for:
-
-* Application startup
-* Menu navigation
-* User interaction
-
-#### Task Manager
-
-Responsible for:
-
-* Creating tasks
-* Viewing tasks
-* Updating tasks
-* Deleting tasks
-
-#### Storage Layer
-
-Responsible for:
-
-* Loading task data
-* Saving task data
-* File operations
-
----
-
-## Coding Standards
-
-### General
-
-* Follow PEP 8 standards.
-* Use meaningful variable names.
-* Write small reusable functions.
-* Avoid duplicate code.
-* Add comments when logic is not obvious.
-
-### Naming Conventions
-
-Functions:
-
-```python
-def add_task():
-    pass
-```
-
-Variables:
-
-```python
-task_id = 1
-task_title = "Learn Git"
-```
-
-Constants:
-
-```python
-MAX_TASKS = 100
+JSON Database
 ```
 
 ---
 
-## Task Object Format
+## Core Features
+
+### Habit Management
+
+* Create habits
+* View habits
+* Update habits
+* Delete habits
+
+### Progress Tracking
+
+* Daily completion tracking
+* Streak calculation
+* Completion statistics
+
+### Analytics
+
+* Longest streak
+* Completion percentage
+* Active habit count
+
+---
+
+## Habit Data Structure
 
 ```python
 {
     "id": 1,
-    "title": "Learn Python",
-    "description": "Complete Python course",
-    "status": "Pending"
+    "name": "Exercise",
+    "frequency": "Daily",
+    "current_streak": 5,
+    "longest_streak": 12,
+    "completed_today": False
 }
 ```
 
 ---
 
-## Development Workflow
+## Coding Standards
 
-1. Create a feature branch.
-2. Implement changes.
-3. Test functionality.
-4. Update documentation if required.
-5. Commit using descriptive messages.
-6. Submit merge request.
+### General Rules
 
-Example:
+* Follow PEP 8.
+* Use meaningful names.
+* Keep functions focused on one responsibility.
+* Avoid duplicated logic.
+* Write readable code.
 
-```bash
-git checkout -b feature/add-task-priority
-git add .
-git commit -m "Add task priority support"
-git push
+### Function Naming
+
+```python
+def add_habit():
+    pass
+
+def complete_habit():
+    pass
+
+def calculate_streak():
+    pass
 ```
+
+---
+
+## Suggested Project Structure
+
+```text
+habit-builder/
+│
+├── main.py
+├── habits.json
+├── README.md
+├── USER_MANUAL.md
+├── AGENTS.md
+│
+├── src/
+│   ├── habits.py
+│   ├── statistics.py
+│   ├── storage.py
+│   └── utils.py
+│
+└── assets/
+```
+
+---
+
+## Testing Requirements
+
+Verify:
+
+* Habit creation
+* Habit deletion
+* Daily completion tracking
+* Streak calculations
+* Statistics generation
+* Data persistence
 
 ---
 
 ## Future Enhancements
 
-Potential improvements:
+### Version 2
 
-* Priority levels
-* Task categories
-* Search functionality
-* Database integration
-* REST API
-* Web interface
-* Authentication
+* Categories
+* Weekly goals
+* Monthly reports
 
----
+### Version 3
 
-## Testing Guidelines
+* User authentication
+* Cloud synchronization
 
-Verify:
+### Version 4
 
-* Task creation works.
-* Task updates work.
-* Task deletion works.
-* Data persistence works.
-* Invalid inputs are handled correctly.
+* Mobile application
+
+### Version 5
+
+* AI-powered habit recommendations
 
 ---
 
-## Design Principles
+## Development Principles
 
-* Simplicity first.
-* Readability over optimization.
-* Educational value is important.
-* Modular code structure.
-* Easy onboarding for new contributors.
+1. Simplicity first.
+2. Maintainability over complexity.
+3. Educational value is important.
+4. Modular architecture.
+5. Clear documentation.
 
 ---
 
-## Contribution Rules
+## Contribution Guidelines
 
-* Do not introduce unnecessary dependencies.
-* Maintain backward compatibility where possible.
-* Update documentation alongside features.
-* Keep code beginner-friendly and easy to understand.
+* Keep features beginner-friendly.
+* Update documentation when changing functionality.
+* Write descriptive commit messages.
+* Test before submitting pull requests.

@@ -1,131 +1,156 @@
-# Internship Task Manager
+# Habit Builder App
 
-A simple task management application built to learn the core concepts of software development while solving a real-world problem.
+A simple habit-tracking application designed to help users build consistency, maintain positive routines, and monitor personal growth.
+
+This project is being developed as a learning-focused software engineering project to understand programming fundamentals, software architecture, and real-world application development.
+
+---
 
 ## 📌 Project Overview
 
-Internship Task Manager helps users organize, track, and manage their daily tasks. The application allows users to create tasks, view existing tasks, update task status, and delete completed or unnecessary tasks.
+Habit Builder App allows users to create habits, track daily progress, maintain streaks, and analyze their consistency over time.
 
-This project is designed as a learning project that covers the fundamental concepts used in most software applications.
+The goal is to encourage users to build productive habits through simple tracking and progress visualization.
+
+Examples of habits:
+
+* Exercise Daily
+* Read for 30 Minutes
+* Practice Coding
+* Drink 3 Liters of Water
+* Sleep Before 11 PM
 
 ---
 
 ## 🎯 Objectives
 
-- Learn programming fundamentals through a practical project
-- Understand how data is stored and manipulated
-- Learn CRUD operations (Create, Read, Update, Delete)
-- Practice working with functions, loops, conditions, and data structures
-- Understand how frontend, backend, and storage interact
+* Help users build positive habits.
+* Track consistency and progress.
+* Provide motivation through streak tracking.
+* Learn software development through a practical project.
 
 ---
 
 ## ✨ Features
 
-### Task Management
-- Add new tasks
-- View all tasks
-- Mark tasks as completed
-- Delete tasks
+### Habit Management
 
-### Task Information
-Each task contains:
-- Task ID
-- Task Title
-- Task Description
-- Status (Pending / Completed)
+* Create habits
+* View habits
+* Update habit details
+* Delete habits
 
-### Future Enhancements
-- Due dates
-- Priority levels
-- Categories
-- User authentication
-- Database integration
-- Web interface
-- Notifications
+### Progress Tracking
+
+* Mark habits as completed
+* Daily progress tracking
+* Streak calculation
+* Longest streak tracking
+
+### Statistics
+
+* Total habits
+* Active habits
+* Completion rate
+* Longest streak
+* Overall progress summary
 
 ---
 
-## 🛠️ Technologies Used
+## 🛠️ Technology Stack
 
 ### Current Version
-- Python
-- JSON File Storage
 
-### Future Versions
-- HTML
-- CSS
-- JavaScript
-- Flask / FastAPI
-- SQLite / PostgreSQL
-- Git & GitLab
+* Python
+* JSON File Storage
+
+### Planned Enhancements
+
+* HTML
+* CSS
+* JavaScript
+* Flask / FastAPI
+* SQLite / PostgreSQL
+* Cloud Deployment
 
 ---
 
-## 📚 Concepts Learned
+## 📚 Programming Concepts Covered
 
-This project teaches the following programming concepts:
+This project is designed to teach the most important software development concepts.
 
 ### Variables
-Used to store task information.
 
-### Lists
-Used to store multiple tasks.
-
-### Dictionaries
-Used to represent task objects.
-
-Example:
+Store habit information.
 
 ```python
-task = {
+habit_name = "Exercise"
+```
+
+### Lists
+
+Store multiple habits.
+
+```python
+habits = []
+```
+
+### Dictionaries
+
+Represent habit objects.
+
+```python
+habit = {
     "id": 1,
-    "title": "Learn Git",
-    "status": "Pending"
+    "name": "Exercise",
+    "streak": 5
 }
 ```
 
 ### Conditions
 
 ```python
-if task["status"] == "Pending":
-    print("Task not completed")
+if completed_today:
+    streak += 1
 ```
 
 ### Loops
 
 ```python
-for task in tasks:
-    print(task["title"])
+for habit in habits:
+    print(habit["name"])
 ```
 
 ### Functions
 
 ```python
-def add_task():
+def add_habit():
     pass
 ```
 
 ### CRUD Operations
 
-- Create → Add Task
-- Read → View Tasks
-- Update → Mark Completed
-- Delete → Remove Task
+* Create Habit
+* Read Habit
+* Update Habit
+* Delete Habit
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-internship-task-manager/
+habit-builder/
 │
 ├── main.py
-├── tasks.json
+├── habits.json
 ├── README.md
+├── USER_MANUAL.md
+├── AGENTS.md
 │
 ├── src/
-│   ├── task_manager.py
+│   ├── habits.py
+│   ├── statistics.py
 │   ├── storage.py
 │   └── utils.py
 │
@@ -134,93 +159,142 @@ internship-task-manager/
 
 ---
 
-## 🚀 How It Works
+## 🚀 Getting Started
 
-1. User enters a task.
-2. Application stores the task.
-3. User can view all tasks.
-4. User can update task status.
-5. User can delete tasks.
-6. Data is saved for future use.
+### Prerequisites
 
-Workflow:
+* Python 3.10 or later
+
+Verify installation:
+
+```bash
+python --version
+```
+
+### Run the Application
+
+```bash
+python main.py
+```
+
+---
+
+## 🔄 Application Workflow
 
 ```text
 User Input
      ↓
-Task Manager
+Habit Management
      ↓
-Store Data
+Progress Tracking
      ↓
-Display Results
+Data Storage
+     ↓
+Statistics & Insights
 ```
 
 ---
 
 ## 📝 Example Usage
 
-### Add Task
+### Create Habit
 
 ```text
-Enter task title:
-Learn Python Basics
+Habit Name: Exercise
+Frequency: Daily
 ```
 
-### View Tasks
+### Complete Habit
 
 ```text
-1. Learn Python Basics [Pending]
-2. Complete Internship Project [Completed]
+Habit Completed Successfully
+Current Streak: 6 Days
 ```
 
-### Mark Task Complete
+### View Statistics
 
 ```text
-Task ID: 1
-Status Updated Successfully
+Total Habits: 5
+Active Habits: 4
+Longest Streak: 12 Days
+Completion Rate: 85%
 ```
 
 ---
 
-## 🎓 Learning Outcome
+## 🎓 Learning Outcomes
 
-After completing this project, a developer should understand:
+After completing this project, developers will gain experience with:
 
-- Basic programming logic
-- Problem solving
-- Data structures
-- Functions
-- CRUD operations
-- File handling
-- Project organization
-- Version control with Git
+* Programming fundamentals
+* Problem solving
+* Data structures
+* Functions
+* File handling
+* CRUD operations
+* Project organization
+* Git and version control
+* Software design principles
 
-These concepts form the foundation of most software applications and are transferable across programming languages such as Python, JavaScript, Java, C#, and Go.
+These skills are transferable across languages such as Python, JavaScript, Java, C#, Go, and many others.
 
 ---
 
-## 📈 Future Roadmap
+## 📈 Roadmap
 
-### Version 1
-- Console-based application
+### Version 1.0
 
-### Version 2
-- JSON data persistence
+* Console-based habit tracker
+* Local JSON storage
+* Basic streak tracking
 
-### Version 3
-- Web-based interface
+### Version 2.0
 
-### Version 4
-- Database integration
+* Categories
+* Weekly goals
+* Monthly reports
 
-### Version 5
-- Multi-user support
+### Version 3.0
 
-### Version 6
-- Deployment to cloud
+* Database integration
+* User authentication
+
+### Version 4.0
+
+* Web application
+* Responsive UI
+
+### Version 5.0
+
+* Notifications and reminders
+* Cloud synchronization
+
+### Version 6.0
+
+* AI-powered habit recommendations
+* Advanced analytics dashboard
+
+---
+
+## 🤝 Contributing
+
+Contributions, suggestions, and improvements are welcome.
+
+Please:
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Commit your changes.
+4. Submit a pull request.
+
+---
+
+## 📄 License
+
+This project is intended for educational and learning purposes.
 
 ---
 
 ## 👨‍💻 Author
 
-Built as a learning project to understand software development fundamentals and real-world application architecture.
+Developed as a software engineering learning project focused on understanding programming concepts through practical implementation.

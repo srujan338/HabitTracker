@@ -1,26 +1,29 @@
 # User Manual
 
-## Internship Task Manager
+# Habit Builder App
 
-### Introduction
+## Introduction
 
-Internship Task Manager is a simple application that helps users organize and track their daily tasks. Users can create tasks, view existing tasks, update task status, and remove tasks that are no longer needed.
+Habit Builder App is a simple habit-tracking application designed to help users build consistency and monitor personal growth.
+
+Users can create habits, track daily progress, view streaks, and monitor completion rates.
 
 ---
 
 ## Features
 
-* Add new tasks
-* View all tasks
-* Mark tasks as completed
-* Delete tasks
-* Store task information locally
+* Add new habits
+* View all habits
+* Mark habits as completed
+* Track daily streaks
+* View progress statistics
+* Delete habits
 
 ---
 
-## Starting the Application
+## Getting Started
 
-Run the application:
+### Run the Application
 
 ```bash
 python main.py
@@ -30,90 +33,100 @@ python main.py
 
 ## Main Menu
 
-After launching the application, users will see the following menu:
-
 ```text
-1. Add Task
-2. View Tasks
-3. Mark Task as Completed
-4. Delete Task
-5. Exit
+1. Add Habit
+2. View Habits
+3. Complete Habit
+4. View Statistics
+5. Delete Habit
+6. Exit
 ```
-
-Select an option by entering the corresponding number.
 
 ---
 
-## Adding a Task
+## Adding a Habit
 
-1. Select option `1`.
-2. Enter a task title.
-3. Enter a task description.
-4. The task will be added to the task list.
+Select option `1`.
 
 Example:
 
 ```text
-Enter Task Title:
-Learn Python
-
-Enter Task Description:
-Complete Python fundamentals course
+Habit Name: Exercise
+Target Frequency: Daily
 ```
+
+The habit will be added to your habit list.
 
 ---
 
-## Viewing Tasks
+## Viewing Habits
 
-1. Select option `2`.
-2. All available tasks will be displayed.
+Select option `2`.
 
 Example:
 
 ```text
 ID: 1
-Title: Learn Python
-Description: Complete Python fundamentals course
-Status: Pending
+Habit: Exercise
+Current Streak: 5 Days
+Completion Rate: 90%
+Status: Active
 ```
 
 ---
 
-## Marking a Task as Completed
+## Completing a Habit
 
-1. Select option `3`.
-2. Enter the task ID.
-3. The task status will be updated to Completed.
+Select option `3`.
+
+Enter the habit ID.
 
 Example:
 
 ```text
-Enter Task ID: 1
+Enter Habit ID: 1
 
-Task marked as completed.
+Habit completed successfully.
 ```
+
+The current streak and progress data will be updated automatically.
 
 ---
 
-## Deleting a Task
+## Viewing Statistics
 
-1. Select option `4`.
-2. Enter the task ID.
-3. The task will be removed from the system.
+Select option `4`.
+
+Statistics displayed:
+
+* Total Habits
+* Active Habits
+* Longest Streak
+* Completion Percentage
 
 Example:
 
 ```text
-Enter Task ID: 1
-
-Task deleted successfully.
+Total Habits: 5
+Longest Streak: 12 Days
+Completion Rate: 84%
 ```
 
 ---
 
-## Exiting the Application
+## Deleting a Habit
 
-Select option `5` to safely close the application.
+Select option `5`.
+
+Enter the habit ID you wish to remove.
+
+Example:
+
+```text
+Enter Habit ID: 3
+
+Habit deleted successfully.
+```
 
 ---
 
@@ -121,18 +134,18 @@ Select option `5` to safely close the application.
 
 ### Application Does Not Start
 
-Verify Python is installed:
+Verify Python installation:
 
 ```bash
 python --version
 ```
 
-### Task Data Not Saving
+### Progress Not Saving
 
-Ensure the application has permission to create and modify the task storage file.
+Ensure the application has permission to create and update storage files.
 
 ---
 
 ## Support
 
-For issues, feature requests, or bug reports, create an issue in the project repository.
+For bug reports, feature requests, or improvement suggestions, create an issue in the project repository.
