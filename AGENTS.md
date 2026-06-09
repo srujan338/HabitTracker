@@ -158,11 +158,14 @@ Verify:
 
 ## Development Principles
 
-1. Simplicity first.
-2. Maintainability over complexity.
-3. Educational value is important.
-4. Modular architecture.
-5. Clear documentation.
+1. **Beginner Friendly**: Keep code accessible to learners.
+2. **Python First**: Standardize on Python.
+3. **PEP8 Compliance**: Follow Python style guides strictly.
+4. **JSON Storage**: Use JSON for data persistence.
+5. **Modular Design**: Build small, focused functions.
+6. **Minimal Dependencies**: Prioritize the standard library.
+7. **Readability Focused**: Clarity over optimization.
+8. **Documentation First**: Document every feature and change.
 
 ---
 
