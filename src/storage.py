@@ -1,44 +1,22 @@
-"""
-Storage module for the Habit Tracker application.
-Handles JSON file I/O operations for persistent habit data.
-"""
-
 import json
 import os
+from typing import List
 
-HABITS_FILE = "habits.json"
+DATA_FILE = "data/habits.json"
 
 
-def load_habits():
-    """
-    Load habits from the JSON file.
-
-    Returns:
-        list: A list of habit dictionaries. Returns an empty list if the file
-              does not exist or is corrupted.
-    """
-    if not os.path.exists(HABITS_FILE):
+def load_habits() -> List[dict]:
+    if not os.path.exists(DATA_FILE):
+        os.makedirs("data", exist_ok=True)
         return []
     try:
-        with open(HABITS_FILE, "r") as f:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
         return []
 
 
-def save_habits(habits):
-    """
-    Save habits to the JSON file.
-
-    Args:
-        habits (list): A list of habit dictionaries to persist.
-
-    Returns:
-        bool: True if save was successful, False otherwise.
-    """
-    try:
-        with open(HABITS_FILE, "w") as f:
-            json.dump(habits, f, indent=4)
-        return True
-    except IOError:
-        return False
+def save_habits(habits_data: List[dict]) -> None:
+    os.makedirs("data", exist_ok=True)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(habits_data, f, indent=2, ensure_ascii=False)

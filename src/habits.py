@@ -1,156 +1,155 @@
-"""
-Habits module for the Habit Tracker application.
-Contains the Habit class and helper functions for habit management.
-"""
-
-from datetime import datetime, date, timedelta
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+from typing import List, Optional
 
 
+@dataclass
 class Habit:
-    """
-    Represents a recurring task that a user wants to track.
-    """
+    name: str
+    habit_type: str          # "adopt" or "quit"
+    emoji: str
+    completions: List[str] = field(default_factory=list)   # list of ISO date strings
+    created_at: str = field(default_factory=lambda: date.today().isoformat())
 
-    def __init__(self, name, completions=None, longest_streak=0):
-        """
-        Initialize a new Habit instance.
+    # ── derived stats ──────────────────────────────────────────────
 
-        Args:
-            name (str): The unique name of the habit.
-            completions (list, optional): List of ISO-8601 date strings.
-            longest_streak (int, optional): The recorded longest streak.
-        """
-        self.name = name
-        self.completions = completions if completions is not None else []
-        self.longest_streak = longest_streak
+    def is_completed_today(self) -> bool:
+        return date.today().isoformat() in self.completions
 
-    @classmethod
-    def from_dict(cls, data):
-        """
-        Create a Habit instance from a dictionary.
-
-        Args:
-            data (dict): Dictionary containing habit attributes.
-
-        Returns:
-            Habit: A new Habit instance.
-        """
-        return cls(
-            name=data["name"],
-            completions=data.get("completions", []),
-            longest_streak=data.get("longest_streak", 0),
-        )
-
-    def to_dict(self):
-        """
-        Convert the Habit instance to a dictionary.
-
-        Returns:
-            dict: Dictionary representation of the habit.
-        """
-        return {
-            "name": self.name,
-            "completions": self.completions,
-            "longest_streak": self.longest_streak,
-        }
-
-    def mark_complete(self, completion_date=None):
-        """
-        Mark the habit as complete for a given date.
-
-        Args:
-            completion_date (str, optional): ISO-8601 date string. Defaults to today.
-
-        Returns:
-            bool: True if completion was added, False if already exists.
-        """
-        if completion_date is None:
-            completion_date = date.today().isoformat()
-
-        if completion_date not in self.completions:
-            self.completions.append(completion_date)
-            self.completions.sort()
-            # Update longest streak whenever a new completion is added
-            self.update_longest_streak()
-            return True
-        return False
-
-    def get_current_streak(self):
-        """
-        Calculate the current streak based on completions.
-
-        Returns:
-            int: Number of consecutive days completed up to today or yesterday.
-        """
+    def get_current_streak(self) -> int:
         if not self.completions:
             return 0
-
-        # Sort completions descending (newest first)
-        sorted_dates = sorted(
-            [datetime.strptime(d, "%Y-%m-%d").date() for d in self.completions],
-            reverse=True,
-        )
-
-        today = date.today()
-
-        # If the most recent completion is older than yesterday, the streak is 0
-        last_date = sorted_dates[0]
-        if last_date < today - timedelta(days=1):
-            return 0
-
-        streak = 1
-        for i in range(len(sorted_dates) - 1):
-            if sorted_dates[i] - sorted_dates[i + 1] == timedelta(days=1):
+        sorted_dates = sorted(self.completions, reverse=True)
+        streak = 0
+        check = date.today()
+        for d in sorted_dates:
+            if d == check.isoformat():
                 streak += 1
+                check -= timedelta(days=1)
+            elif d == (check + timedelta(days=1)).isoformat():
+                # allow today not yet checked
+                continue
             else:
                 break
         return streak
 
-    def update_longest_streak(self):
-        """
-        Update the longest streak record if current streak is higher.
+    def get_longest_streak(self) -> int:
+        if not self.completions:
+            return 0
+        valid_dates = []
+        for d in set(self.completions):
+            try:
+                valid_dates.append(date.fromisoformat(d))
+            except (ValueError, TypeError):
+                continue
+        if not valid_dates:
+            return 0
+            
+        sorted_dates = sorted(valid_dates)
+        longest = current = 1
+        for i in range(1, len(sorted_dates)):
+            a = sorted_dates[i - 1]
+            b = sorted_dates[i]
+            if (b - a).days == 1:
+                current += 1
+                longest = max(longest, current)
+            else:
+                current = 1
+        return longest
 
-        Returns:
-            int: The updated longest streak.
-        """
-        current = self.get_current_streak()
-        if current > self.longest_streak:
-            self.longest_streak = current
-        return self.longest_streak
+    def get_total_completions(self) -> int:
+        return len(self.completions)
+
+    def get_completion_rate(self, days: int = 30) -> float:
+        end = date.today()
+        start = end - timedelta(days=days - 1)
+        
+        valid_completions = []
+        for d in self.completions:
+            try:
+                valid_completions.append(date.fromisoformat(d))
+            except (ValueError, TypeError):
+                continue
+                
+        completed = sum(1 for d in valid_completions if start <= d <= end)
+        
+        try:
+            created = date.fromisoformat(self.created_at)
+        except (ValueError, TypeError):
+            created = date.today()
+            
+        actual_days = min(days, (end - created).days + 1)
+        return round(completed / actual_days * 100, 1) if actual_days > 0 else 0.0
+
+    def get_rank(self) -> dict:
+        streak = self.get_current_streak()
+        if streak >= 30:
+            return {"label": "Legend", "color": "#F5A623", "bg": "rgba(245,166,35,0.12)", "icon": "🏅"}
+        elif streak >= 14:
+            return {"label": "Gold", "color": "#FFD700", "bg": "rgba(255,215,0,0.12)", "icon": "🥇"}
+        elif streak >= 7:
+            return {"label": "Silver", "color": "#A8B8C8", "bg": "rgba(168,184,200,0.15)", "icon": "🥈"}
+        elif streak >= 3:
+            return {"label": "Bronze", "color": "#CD7F32", "bg": "rgba(205,127,50,0.15)", "icon": "🥉"}
+        elif streak >= 1:
+            return {"label": "Starter", "color": "#4ECDC4", "bg": "rgba(78,205,196,0.12)", "icon": "🌱"}
+        else:
+            return {"label": "Not started", "color": "#94A3B8", "bg": "rgba(148,163,184,0.08)", "icon": "—"}
+
+    def get_calendar_month(self, year: int, month: int) -> dict:
+        """Returns a dict of day→True for completed days in that month."""
+        result = {}
+        for d in self.completions:
+            try:
+                dd = date.fromisoformat(d)
+                if dd.year == year and dd.month == month:
+                    result[dd.day] = True
+            except (ValueError, TypeError):
+                continue
+        return result
+
+    def mark_complete(self) -> bool:
+        today = date.today().isoformat()
+        if today not in self.completions:
+            self.completions.append(today)
+            return True
+        return False
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "habit_type": self.habit_type,
+            "emoji": self.emoji,
+            "completions": self.completions,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Habit":
+        # Validate completions are strings before passing to constructor
+        raw_completions = d.get("completions", [])
+        valid_completions = [c for c in raw_completions if isinstance(c, str)]
+        
+        return cls(
+            name=d["name"],
+            habit_type=d.get("habit_type", "adopt"),
+            emoji=d.get("emoji", "✅"),
+            completions=valid_completions,
+            created_at=d.get("created_at", date.today().isoformat()),
+        )
 
 
-def add_habit(habits_list, name):
-    """
-    Add a new habit to the list if the name is unique.
-
-    Args:
-        habits_list (list): List of Habit instances.
-        name (str): The name of the new habit.
-
-    Returns:
-        tuple: (Habit or None, error_message or None)
-    """
-    if any(h.name.lower() == name.lower() for h in habits_list):
-        return None, "Habit with this name already exists."
-
-    new_habit = Habit(name)
-    habits_list.append(new_habit)
-    return new_habit, None
+def add_habit(habits: List[Habit], name: str, habit_type: str, emoji: str) -> tuple:
+    if any(h.name.lower() == name.lower() for h in habits):
+        return None, "A habit with that name already exists."
+    habit = Habit(name=name, habit_type=habit_type, emoji=emoji)
+    habits.append(habit)
+    return habit, None
 
 
-def delete_habit(habits_list, name):
-    """
-    Remove a habit from the list by name.
-
-    Args:
-        habits_list (list): List of Habit instances.
-        name (str): The name of the habit to remove.
-
-    Returns:
-        bool: True if habit was found and removed, False otherwise.
-    """
-    for i, h in enumerate(habits_list):
+def delete_habit(habits: List[Habit], name: str) -> bool:
+    for i, h in enumerate(habits):
         if h.name == name:
-            habits_list.pop(i)
+            habits.pop(i)
             return True
     return False
