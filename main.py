@@ -82,23 +82,27 @@ def apply_design():
     """
     theme = st.session_state.get("theme", "Dark")
     
-    css_files = ["assets/style.css"]
-    if theme == "Retro":
-        css_files.append("assets/retro.css")
+    # Load base style
+    try:
+        with open("assets/style.css", "r", encoding="utf-8") as f:
+            base_css = f.read()
+    except FileNotFoundError:
+        base_css = ""
         
-    css_code = ""
-    for file in css_files:
+    # Load retro style if needed
+    retro_css = ""
+    if theme == "Retro":
         try:
-            with open(file, "r", encoding="utf-8") as f:
-                css_code += f.read() + "\n"
+            with open("assets/retro.css", "r", encoding="utf-8") as f:
+                retro_css = f.read()
         except FileNotFoundError:
             pass
     
-    theme_attr = f'data-theme="{theme.lower()}"'
-    
     st.markdown(f'''
-    <div {theme_attr}>
-    <style>{css_code}</style>
+    <style>
+    {base_css}
+    {retro_css}
+    </style>
     ''', unsafe_allow_html=True)
 
 
@@ -117,15 +121,15 @@ def init_app():
     if "selected_habit" not in st.session_state:
         st.session_state.selected_habit = None
     
+    if "current_user" not in st.session_state:
+        st.session_state.current_user = None
+    
     if "habits" not in st.session_state:
         if st.session_state.current_user:
             raw_habits = load_habits(st.session_state.current_user.username)
             st.session_state.habits = [Habit.from_dict(h) for h in raw_habits]
         else:
             st.session_state.habits = []
-    
-    if "current_user" not in st.session_state:
-        st.session_state.current_user = None
 
 
 def save_data():
