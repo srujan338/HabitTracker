@@ -1,0 +1,82 @@
+"""
+=============================================================================
+CHAPTER 1: THE SKIN (STYLING)
+=============================================================================
+This file is your app's "Style Guide". 
+In Python, we focus on 'What' the app does.
+In CSS, we focus on 'How' the app looks.
+
+MENTORSHIP NOTE:
+We use CSS Variables (the :root section) to define our colors once.
+If you want to change the "Accent" color from Purple to Blue, you only 
+have to change it in ONE place here!
+=============================================================================
+"""
+
+/* ── APP-WIDE VARIABLES ── */
+:root {
+    /* Transitions make things feel "creamy" and smooth */
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── THE GLASS LOOK ── 
+   This is the "Secret Sauce" for the iOS look.
+   'backdrop-filter' is what blurs the background.
+*/
+.glass-card {
+    background: var(--glass) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 24px !important;
+    padding: 2rem !important;
+    margin-bottom: 1.5rem !important;
+    box-shadow: var(--shadow) !important;
+}
+
+/* ── THE NAVIGATION BAR ── 
+   MENTORSHIP NOTE: 
+   'position: fixed' keeps it at the top when you scroll.
+   'z-index: 9999' keeps it on top of all other elements.
+*/
+.nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: var(--glass-heavy);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border2);
+    padding: 0.75rem 2rem;
+    display: flex;
+    justify-content: center; /* Centers our logo/nav */
+}
+
+/* ── BUTTONS ── */
+.stButton > button {
+    border-radius: 14px !important;
+    font-weight: 600 !important;
+    transition: var(--transition) !important;
+    border: 1px solid var(--border2) !important;
+    background: var(--glass) !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* ── FIXING THE "BUGGY" LAYOUT ── 
+   Since we have a fixed navigation bar, we need to push the 
+   rest of the app down so it doesn't get covered!
+*/
+[data-testid="stAppViewContainer"] {
+    padding-top: 80px !important;
+}
+
+/* Hide the default header so our custom one shines */
+[data-testid="stHeader"] {
+    background: transparent !important;
+}
