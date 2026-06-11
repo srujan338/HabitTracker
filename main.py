@@ -47,6 +47,8 @@ from datetime import date
 # ── MODULE IMPORTS ──────────────────────────────────────────────────────────
 from src.habits import Habit, add_habit, delete_habit
 from src.storage import load_habits, save_habits
+from src.i18n import translate, set_language
+from src.ai import get_habit_recommendations, call_ollama
 from src.auth import (
     User, Event,
     register_user, login_user, get_user_by_username, update_user,
@@ -54,17 +56,7 @@ from src.auth import (
     check_achievements, ACHIEVEMENTS,
     XP_HABIT_COMPLETION, XP_STREAK_BONUS
 )
-from src.ui_components import (
-    render_top_nav,
-    glass_card_start,
-    glass_card_end,
-    rank_badge,
-    render_stats_cards,
-    celebration_effect,
-    motivation_message,
-    render_empty_state,
-    get_streak_flame_emoji
-)
+from src.ui_components import render_top_nav, render_ai_companion, glass_card_start, glass_card_end, rank_badge, render_stats_cards, celebration_effect, motivation_message, render_empty_state, get_streak_flame_emoji
 from src.calendars import render_global_calendar, render_habit_calendar, render_streak_visualization
 
 
@@ -76,7 +68,7 @@ st.set_page_config(
     page_title="habit.space - Game Edition",
     page_icon="🎮",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 
@@ -87,63 +79,27 @@ st.set_page_config(
 def apply_design():
     """
     Applies the visual design system to the entire app.
-    Includes theme colors and light theme high-contrast fixes.
     """
     theme = st.session_state.get("theme", "Dark")
     
-    if theme == "Dark":
-        colors = """
-        :root {
-            --bg: linear-gradient(135deg, #0D0F14 0%, #1A1C25 100%);
-            --glass: rgba(25, 28, 38, 0.7);
-            --glass-heavy: rgba(15, 17, 23, 0.95);
-            --text: #F8FAFC;
-            --text2: #94A3B8;
-            --text3: #64748B;
-            --accent: #7B61FF;
-            --accent2: #7B61FF;
-            --success: #10B981;
-            --danger: #EF4444;
-            --warning: #F5A623;
-            --border2: rgba(255, 255, 255, 0.1);
-            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-        }
-        """
-        theme_attr = 'data-theme="dark"'
-    else:
-        colors = """
-        :root {
-            --bg: linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%);
-            --glass: rgba(255, 255, 255, 0.9);
-            --glass-heavy: rgba(255, 255, 255, 0.97);
-            --text: #101828;
-            --text2: #475467;
-            --text3: #667085;
-            --accent: #4F46E5;
-            --accent2: #4F46E5;
-            --success: #027A48;
-            --danger: #DC2626;
-            --warning: #D97706;
-            --border2: rgba(0, 0, 0, 0.12);
-            --shadow: 0 10px 40px 0 rgba(16, 24, 40, 0.1);
-        }
-        """
-        theme_attr = 'data-theme="light"'
+    css_files = ["assets/style.css"]
+    if theme == "Retro":
+        css_files.append("assets/retro.css")
+        
+    css_code = ""
+    for file in css_files:
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                css_code += f.read() + "\n"
+        except FileNotFoundError:
+            pass
     
-    try:
-        with open("assets/style.css", "r", encoding="utf-8") as f:
-            css_code = f.read()
-    except FileNotFoundError:
-        css_code = ""
+    theme_attr = f'data-theme="{theme.lower()}"'
     
-    fonts = '''
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    '''
-    
-    st.html(f'''
+    st.markdown(f'''
     <div {theme_attr}>
-    {fonts}<style>{colors}\n{css_code}</style>
-    ''')
+    <style>{css_code}</style>
+    ''', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -162,17 +118,21 @@ def init_app():
         st.session_state.selected_habit = None
     
     if "habits" not in st.session_state:
-        raw_habits = load_habits()
-        st.session_state.habits = [Habit.from_dict(h) for h in raw_habits]
+        if st.session_state.current_user:
+            raw_habits = load_habits(st.session_state.current_user.username)
+            st.session_state.habits = [Habit.from_dict(h) for h in raw_habits]
+        else:
+            st.session_state.habits = []
     
     if "current_user" not in st.session_state:
         st.session_state.current_user = None
 
 
 def save_data():
-    """Persist habit data to disk."""
-    habits_data = [h.to_dict() for h in st.session_state.habits]
-    save_habits(habits_data)
+    """Persist habit data to MongoDB."""
+    if st.session_state.current_user:
+        habits_data = [h.to_dict() for h in st.session_state.habits]
+        save_habits(st.session_state.current_user.username, habits_data)
 
 
 def save_user_data():
@@ -217,6 +177,10 @@ def page_login():
                     st.rerun()
                 else:
                     st.error(error)
+            
+            st.markdown("<div style='text-align: center; margin: 16px 0;'>OR</div>", unsafe_allow_html=True)
+            if st.button("Login with Google", use_container_width=True):
+                st.info("Google Login integration is coming soon! Please use local login for now.")
         
         with tab2:
             reg_username = st.text_input("Choose Username", key="reg_user",
@@ -800,14 +764,14 @@ def main():
         return
     
     user = st.session_state.current_user
-    
-    # ── Render Navigation ──
-    render_game_nav(user)
-    
-    # ── Route to Page ──
     habits = st.session_state.habits
     active = st.session_state.active_page
     
+    # ── Render Navigation ──
+    render_top_nav(habits, active, st.session_state.theme)
+    render_ai_companion(user.to_dict())
+    
+    # ── Route to Page ──
     _, stage, _ = st.columns([1, 10, 1])
     with stage:
         if active == "Today":
@@ -822,53 +786,41 @@ def main():
             page_rankings(user)
         elif active == "Achievements":
             page_achievements(user)
+        elif active == "AI Coach":
+            page_ai_coach(user)
         else:
             st.error("Page not found.")
 
 
-def render_game_nav(user: User):
-    """Render navigation bar with game-themed pages."""
-    c1, c2, c3 = st.columns([3, 5, 2])
+def page_ai_coach(user: User):
+    """AI Coach page for recommendations and motivation."""
+    st.markdown(f"# 🤖 {translate('ai_coach')}")
+    st.caption("Personalized missions from your Cyber-Buddy")
     
-    with c1:
-        st.markdown(
-            '<h1 style="font-size: 26px; margin:0; font-family:\'Space Grotesk\', sans-serif; '
-            'font-weight: 700;">'
-            'habit<span style="color:var(--accent2);">.space</span>'
-            '<span style="font-size: 12px; color: var(--text2); margin-left: 8px;">🎮</span>'
-            '</h1>', 
-            unsafe_allow_html=True
-        )
+    glass_card_start("✨ Habit Discovery Survey", "Answer these to get personalized missions")
     
-    with c2:
-        nav_cols = st.columns(5)
-        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements"]
-        icons = ["🏠", "📋", "🎯", "🏆", "🎖️"]
+    with st.form("ai_survey"):
+        q1 = st.text_area("What are your primary goals for the next 30 days?", placeholder="e.g., Learn Python, lose weight, read more...")
+        q2 = st.selectbox("How much time can you dedicate daily?", ["< 15 mins", "15-30 mins", "30-60 mins", "1 hour+"])
+        q3 = st.multiselect("What areas do you want to improve?", ["Health", "Productivity", "Mindfulness", "Learning", "Social"])
         
-        for i, (p, icon) in enumerate(zip(pages, icons)):
-            is_active = (st.session_state.active_page == p) or (p == "Today" and st.session_state.active_page == "Habit Detail")
-            label = f"{icon} **{p}**" if is_active else f"{icon} {p}"
-            
-            if nav_cols[i].button(label, key=f"nav_{p}", use_container_width=True):
-                st.session_state.active_page = p
-                st.rerun()
+        submitted = st.form_submit_button("Generate Missions", type="primary")
+        if submitted:
+            user_answers = {"goals": q1, "time": q2, "areas": q3}
+            with st.spinner("Cyber-Buddy is calculating your path..."):
+                recommendations = get_habit_recommendations(user_answers)
+                st.session_state.ai_recommendations = recommendations
+            st.rerun()
     
-    with c3:
-        # User avatar and logout
-        col_a, col_b = st.columns(2)
-        with col_a:
-            theme_icon = "🌙" if st.session_state.theme == "Dark" else "☀️"
-            if st.button(theme_icon, key="theme_toggle", 
-                        help=f"Switch to {'Light' if st.session_state.theme == 'Dark' else 'Dark'} theme"):
-                st.session_state.theme = "Light" if st.session_state.theme == "Dark" else "Dark"
-                st.rerun()
-        with col_b:
-            if st.button("🚪", key="logout", help="Logout"):
-                st.session_state.current_user = None
-                st.rerun()
+    glass_card_end()
     
-    st.divider()
-
+    if "ai_recommendations" in st.session_state:
+        glass_card_start("⚡ Your Cyber-Missions", "Based on your bio-readings")
+        st.markdown(st.session_state.ai_recommendations)
+        if st.button("Clear Recommendations"):
+            del st.session_state.ai_recommendations
+            st.rerun()
+        glass_card_end()
 
 if __name__ == "__main__":
     main()

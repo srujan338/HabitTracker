@@ -83,6 +83,10 @@ class User:
     username: str
     password_hash: str
     
+    # OAuth
+    google_id: Optional[str] = None
+    email: Optional[str] = None
+    
     # Gamification
     level: int = 1
     xp: int = 0
@@ -249,6 +253,8 @@ class User:
         return cls(
             username=d.get("username", "Anonymous"),
             password_hash=d.get("password_hash", ""),
+            google_id=d.get("google_id"),
+            email=d.get("email"),
             level=d.get("level", 1),
             xp=d.get("xp", 0),
             title=d.get("title", "Beginner"),
@@ -346,41 +352,34 @@ def _ensure_data_dir():
 
 
 def load_users() -> List[User]:
-    """Load all users from the JSON file."""
-    _ensure_data_dir()
+    """Load all users from MongoDB."""
+    collection = get_collection(USERS_COLLECTION)
+    users_data = list(collection.find({}))
     
-    if not os.path.exists(USERS_FILE):
-        return []
-    
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        if not isinstance(data, list):
-            return []
-        
-        return [User.from_dict(u) for u in data]
-    
-    except (json.JSONDecodeError, IOError):
-        return []
+    return [User.from_dict(u) for u in users_data]
 
+
+from src.database import get_collection
+
+# Collection names
+USERS_COLLECTION = "users"
 
 def save_users(users: List[User]) -> None:
-    """Save all users to the JSON file."""
-    _ensure_data_dir()
+    """Save all users to MongoDB."""
+    collection = get_collection(USERS_COLLECTION)
     
-    try:
-        temp_file = USERS_FILE + ".tmp"
+    for user in users:
+        user_dict = user.to_dict()
+        # Remove _id if present (MongoDB will generate)
+        if "_id" in user_dict:
+            del user_dict["_id"]
         
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump([u.to_dict() for u in users], f, indent=2, ensure_ascii=False)
-        
-        os.replace(temp_file, USERS_FILE)
-    
-    except IOError as e:
-        print(f"Error saving users: {e}")
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # Use upsert to update if exists, insert if new
+        collection.replace_one(
+            {"username": user.username},
+            user_dict,
+            upsert=True
+        )
 
 
 def load_events() -> List[Event]:
