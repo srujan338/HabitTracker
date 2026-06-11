@@ -1,82 +1,645 @@
-"""
-=============================================================================
-CHAPTER 1: THE SKIN (STYLING)
-=============================================================================
-This file is your app's "Style Guide". 
-In Python, we focus on 'What' the app does.
-In CSS, we focus on 'How' the app looks.
+/* 
+   =============================================================================
+   HABIT SPACE - MODERN UI DESIGN SYSTEM
+   =============================================================================
+   This stylesheet creates a premium, addictive user experience with:
+   - Frosted glass morphism effects
+   - Smooth micro-interactions and animations
+   - Gamification visual feedback
+   - Responsive, accessible design
+   
+   Design Principles:
+   1. Depth through layers (background → cards → elements)
+   2. Motion that feels natural (ease-in-out transitions)
+   3. Visual rewards for user actions (celebrations, glows)
+   4. Consistent spacing and typography scale
+   =============================================================================
+*/
 
-MENTORSHIP NOTE:
-We use CSS Variables (the :root section) to define our colors once.
-If you want to change the "Accent" color from Purple to Blue, you only 
-have to change it in ONE place here!
-=============================================================================
-"""
-
-/* ── APP-WIDE VARIABLES ── */
+/* ── CSS CUSTOM PROPERTIES (Design Tokens) ──────────────────────────────────
+   These variables control the entire visual language of the app.
+   Changing these values will transform the entire theme.
+*/
 :root {
-    /* Transitions make things feel "creamy" and smooth */
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Spacing Scale - Based on 4px grid system */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    
+    /* Typography Scale */
+    --font-xs: 11px;
+    --font-sm: 13px;
+    --font-base: 15px;
+    --font-lg: 18px;
+    --font-xl: 24px;
+    --font-2xl: 32px;
+    --font-3xl: 42px;
+    
+    /* Border Radius Scale - Organic, rounded shapes */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 28px;
+    --radius-full: 50%;
+    
+    /* Animation Timing - Natural, smooth curves */
+    --transition-fast: 150ms ease-in-out;
+    --transition-normal: 250ms ease-in-out;
+    --transition-slow: 400ms ease-in-out;
+    --transition-slower: 600ms ease-in-out;
+    
+    /* Shadow Layers - For depth perception */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.16);
+    --shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.2);
+    --shadow-glow: 0 0 20px rgba(123, 97, 255, 0.3);
 }
 
-/* ── THE GLASS LOOK ── 
-   This is the "Secret Sauce" for the iOS look.
-   'backdrop-filter' is what blurs the background.
+/* ── GLOBAL RESET & BASE STYLES ─────────────────────────────────────────────
+   Ensure consistent rendering across browsers with modern CSS reset.
+*/
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* ── APP-WIDE TRANSITIONS ───────────────────────────────────────────────────
+   All elements smoothly transition when theme or state changes.
+*/
+* { 
+    transition: background-color var(--transition-normal), 
+                border-color var(--transition-normal),
+                box-shadow var(--transition-normal),
+                transform var(--transition-fast);
+}
+
+/* ── THE APP BACKGROUND ─────────────────────────────────────────────────────
+   Fixed gradient background creates depth and prevents scrolling issues.
+*/
+.stApp { 
+    background: var(--bg) fixed !important;
+    background-attachment: fixed !important;
+}
+
+/* ── ANIMATED BACKGROUND PARTICLES ──────────────────────────────────────────
+   Subtle floating orbs in the background add depth and life to the UI.
+*/
+.stApp::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 20% 80%, var(--accent2) 0%, transparent 25%),
+                radial-gradient(circle at 80% 20%, var(--accent2) 0%, transparent 25%),
+                radial-gradient(circle at 50% 50%, var(--accent2) 0%, transparent 30%);
+    opacity: 0.03;
+    animation: bgFloat 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes bgFloat {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(2%, -2%) rotate(1deg); }
+    50% { transform: translate(-1%, 1%) rotate(-1deg); }
+    75% { transform: translate(-2%, -1%) rotate(0.5deg); }
+}
+
+/* ── NAVIGATION BAR ─────────────────────────────────────────────────────────
+   Frosted glass header with blur effect for modern iOS-like feel.
+*/
+[data-testid="stHeader"] {
+    background: var(--glass-heavy) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    border-bottom: 1px solid var(--border2) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* ── SIDEBAR HIDING ─────────────────────────────────────────────────────────
+   We use a centered layout, so sidebar is hidden to maximize content space.
+*/
+[data-testid="stSidebar"] { 
+    display: none !important; 
+}
+
+/* ── GLASS CARDS ────────────────────────────────────────────────────────────
+   The signature frosted glass effect - semi-transparent with blur.
+   Used for containing content sections with elegant depth.
 */
 .glass-card {
     background: var(--glass) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
     border: 1px solid var(--border2) !important;
-    border-radius: 24px !important;
-    padding: 2rem !important;
-    margin-bottom: 1.5rem !important;
-    box-shadow: var(--shadow) !important;
+    border-radius: var(--radius-2xl) !important;
+    padding: var(--space-xl) !important;
+    box-shadow: var(--shadow-lg), 
+                inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    margin-bottom: var(--space-lg) !important;
+    position: relative;
+    overflow: hidden;
 }
 
-/* ── THE NAVIGATION BAR ── 
-   MENTORSHIP NOTE: 
-   'position: fixed' keeps it at the top when you scroll.
-   'z-index: 9999' keeps it on top of all other elements.
-*/
-.nav-bar {
-    position: fixed;
+/* Subtle shine effect on glass cards */
+.glass-card::before {
+    content: '';
+    position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
-    z-index: 9999;
-    background: var(--glass-heavy);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border2);
-    padding: 0.75rem 2rem;
-    display: flex;
-    justify-content: center; /* Centers our logo/nav */
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.05),
+        transparent
+    );
+    transition: left var(--transition-slow);
 }
 
-/* ── BUTTONS ── */
-.stButton > button {
-    border-radius: 14px !important;
+.glass-card:hover::before {
+    left: 150%;
+}
+
+/* ── METRICS CARDS ──────────────────────────────────────────────────────────
+   Enhanced metric display with gradient backgrounds and hover lift.
+*/
+[data-testid="stMetric"] {
+    background: var(--glass) !important;
+    border-radius: var(--radius-xl) !important;
+    border: 1px solid var(--border2) !important;
+    padding: var(--space-lg) !important;
+    box-shadow: var(--shadow-md) !important;
+    transition: transform var(--transition-normal), 
+                box-shadow var(--transition-normal) !important;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg) !important;
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: var(--font-sm) !important;
     font-weight: 600 !important;
-    transition: var(--transition) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text2) !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: var(--font-2xl) !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
+}
+
+/* ── BUTTONS ────────────────────────────────────────────────────────────────
+   Modern buttons with subtle shadows, rounded corners, and smooth hover.
+*/
+.stButton > button {
+    border-radius: var(--radius-lg) !important;
+    font-weight: 600 !important;
+    font-size: var(--font-base) !important;
+    letter-spacing: -0.01em !important;
+    background: var(--glass) !important;
+    border: 1px solid var(--border2) !important;
+    color: var(--text) !important;
+    height: 3rem !important;
+    padding: 0 var(--space-lg) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: all var(--transition-normal) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Button hover - lift and glow effect */
+.stButton > button:hover {
+    border-color: var(--accent2) !important;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md), var(--shadow-glow) !important;
+}
+
+/* Button active - subtle press effect */
+.stButton > button:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Primary button - gradient background */
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--accent2) 0%, #6366F1 100%) !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(123, 97, 255, 0.4) !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    box-shadow: 0 6px 20px rgba(123, 97, 255, 0.6) !important;
+    transform: translateY(-2px);
+}
+
+/* ── MAIN CONTENT AREA ──────────────────────────────────────────────────────
+   Centered layout with proper padding for readability.
+*/
+[data-testid="stAppViewBlockContainer"] {
+    padding-top: var(--space-2xl) !important;
+    max-width: 900px !important;
+    margin: 0 auto !important;
+}
+
+/* ── TEXT INPUT STYLING ─────────────────────────────────────────────────────
+   Clean, modern input fields with subtle borders and focus states.
+*/
+.stTextInput > div > div > input {
+    border-radius: var(--radius-md) !important;
     border: 1px solid var(--border2) !important;
     background: var(--glass) !important;
+    color: var(--text) !important;
+    height: 3rem !important;
+    transition: all var(--transition-normal) !important;
 }
 
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.stTextInput > div > div > input:focus {
+    border-color: var(--accent2) !important;
+    box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.15) !important;
 }
 
-/* ── FIXING THE "BUGGY" LAYOUT ── 
-   Since we have a fixed navigation bar, we need to push the 
-   rest of the app down so it doesn't get covered!
+/* ── SELECT BOX STYLING ─────────────────────────────────────────────────────
+   Dropdown selects with consistent styling.
 */
-[data-testid="stAppViewContainer"] {
-    padding-top: 80px !important;
+.stSelectbox > div > div {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--border2) !important;
+    background: var(--glass) !important;
+    color: var(--text) !important;
 }
 
-/* Hide the default header so our custom one shines */
-[data-testid="stHeader"] {
-    background: transparent !important;
+/* ── DIVIDER STYLING ────────────────────────────────────────────────────────
+   Subtle, elegant dividers that don't overpower content.
+*/
+hr {
+    border: none !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, transparent, var(--border2), transparent) !important;
+    margin: var(--space-md) 0 !important;
+}
+
+/* ── PROGRESS BAR ───────────────────────────────────────────────────────────
+   Animated progress bar with gradient fill.
+*/
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), #6366F1);
+    border-radius: var(--radius-full);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.progress-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4));
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* ── STREAK FLAME ANIMATION ─────────────────────────────────────────────────
+   Pulsing flame effect for streak indicators.
+*/
+.streak-flame {
+    display: inline-block;
+    animation: flamePulse 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 8px rgba(255, 150, 50, 0.5));
+}
+
+@keyframes flamePulse {
+    0%, 100% { 
+        transform: scale(1);
+        filter: drop-shadow(0 0 8px rgba(255, 150, 50, 0.5));
+    }
+    50% { 
+        transform: scale(1.15);
+        filter: drop-shadow(0 0 16px rgba(255, 150, 50, 0.8));
+    }
+}
+
+/* ── ACHIEVEMENT BADGE ──────────────────────────────────────────────────────
+   Glowing badge for achievements and ranks.
+*/
+.achievement-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    animation: badgeGlow 2s ease-in-out infinite;
+}
+
+@keyframes badgeGlow {
+    0%, 100% { 
+        box-shadow: 0 0 5px currentColor;
+        opacity: 0.9;
+    }
+    50% { 
+        box-shadow: 0 0 15px currentColor;
+        opacity: 1;
+    }
+}
+
+/* ── CELEBRATION ANIMATION ──────────────────────────────────────────────────
+   Confetti-like celebration when completing a habit.
+*/
+@keyframes celebrate {
+    0% { transform: scale(1); }
+    25% { transform: scale(1.1) rotate(5deg); }
+    50% { transform: scale(1) rotate(0deg); }
+    75% { transform: scale(1.05) rotate(-3deg); }
+    100% { transform: scale(1); }
+}
+
+.celebrate {
+    animation: celebrate 0.6s ease-in-out;
+}
+
+/* ── CHECKMARK ANIMATION ────────────────────────────────────────────────────
+   Satisfying checkmark animation when task is completed.
+*/
+@keyframes checkPop {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.check-pop {
+    animation: checkPop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ── SLIDE-IN ANIMATION ─────────────────────────────────────────────────────
+   Smooth entry animation for new elements.
+*/
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in {
+    animation: slideIn 0.5s ease-out;
+}
+
+/* ── FADE-IN ANIMATION ──────────────────────────────────────────────────────
+   Gentle fade-in for page transitions.
+*/
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+/* ── CALENDAR DAY CELLS ─────────────────────────────────────────────────────
+   Interactive calendar grid cells with hover effects.
+*/
+.calendar-cell {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    cursor: default;
+    position: relative;
+}
+
+.calendar-cell:hover {
+    transform: scale(1.1);
+    z-index: 1;
+}
+
+.calendar-cell.today {
+    border: 2px solid var(--accent2) !important;
+    box-shadow: 0 0 12px rgba(123, 97, 255, 0.3);
+}
+
+.calendar-cell.completed {
+    background: rgba(107, 203, 119, 0.25);
+    color: var(--success);
+    border: 1px solid var(--success);
+}
+
+.calendar-cell.missed {
+    background: rgba(255, 107, 107, 0.15);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+}
+
+/* ── HABIT CARD ─────────────────────────────────────────────────────────────
+   Individual habit display card with completion status.
+*/
+.habit-card {
+    background: var(--glass);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-xl);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.habit-card:hover {
+    border-color: var(--accent2);
+    box-shadow: var(--shadow-md);
+    transform: translateX(4px);
+}
+
+.habit-card.completed {
+    border-color: var(--success);
+    background: rgba(16, 185, 129, 0.05);
+}
+
+/* ── TOOLTIP ────────────────────────────────────────────────────────────────
+   Elegant tooltips for additional information.
+*/
+.tooltip {
+    position: relative;
+}
+
+.tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: var(--glass-heavy);
+    color: var(--text);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-xs);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-fast);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border2);
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+}
+
+/* ── SCROLLBAR STYLING ──────────────────────────────────────────────────────
+   Custom scrollbar that matches the app theme.
+*/
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent2);
+}
+
+/* ── NOTIFICATION BANNER ────────────────────────────────────────────────────
+   Top notification for achievements and milestones.
+*/
+.notification {
+    position: fixed;
+    top: var(--space-lg);
+    right: var(--space-lg);
+    background: var(--glass-heavy);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    box-shadow: var(--shadow-xl);
+    z-index: 1000;
+    animation: slideInRight 0.5s ease-out;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ── LOADING SPINNER ────────────────────────────────────────────────────────
+   Elegant loading indicator.
+*/
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border2);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── RESPONSIVE ADJUSTMENTS ─────────────────────────────────────────────────
+   Ensure the app looks great on all screen sizes.
+*/
+@media (max-width: 768px) {
+    :root {
+        --font-3xl: 32px;
+        --font-2xl: 26px;
+        --font-xl: 20px;
+    }
+    
+    [data-testid="stAppViewBlockContainer"] {
+        padding-left: var(--space-md) !important;
+        padding-right: var(--space-md) !important;
+    }
+    
+    .glass-card {
+        padding: var(--space-lg) !important;
+    }
+}
+
+/* ── ACCESSIBILITY ──────────────────────────────────────────────────────────
+   Focus states for keyboard navigation.
+*/
+:focus-visible {
+    outline: 2px solid var(--accent2);
+    outline-offset: 2px;
+}
+
+/* ── REDUCED MOTION ─────────────────────────────────────────────────────────
+   Respect user preferences for reduced animations.
+*/
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
