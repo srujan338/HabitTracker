@@ -1,0 +1,28 @@
+[
+  {
+    "username": "srujan munta",
+    "password_hash": "7fef9479c8bc5a3c86891cb82969cbf2ffc73c7350366c82286345d8292eebf5",
+    "level": 2,
+    "xp": 95,
+    "title": "Apprentice",
+    "discipline": 59,
+    "consistency": 46,
+    "dedication": 44,
+    "focus": 54,
+    "total_streak_days": 0,
+    "total_completions": 2,
+    "habits_created": 3,
+    "events_joined": 1,
+    "events_completed": 0,
+    "achievements": [
+      "first_habit",
+      "event_first"
+    ],
+    "joined_events": [
+      "event_002"
+    ],
+    "completed_events": [],
+    "created_at": "2026-06-11",
+    "last_active": "2026-06-11"
+  }
+]
