@@ -1,0 +1,50 @@
+[
+  {
+    "id": "event_001",
+    "name": "🏋️ 10 Pushups Challenge",
+    "description": "Do 10 pushups every day for 7 days. Build your strength!",
+    "habit_suggestion": "10 Pushups Daily",
+    "emoji": "🏋️",
+    "start_date": "2026-06-09",
+    "end_date": "2026-06-16",
+    "xp_reward": 100,
+    "participant_count": 0,
+    "is_active": true
+  },
+  {
+    "id": "event_002",
+    "name": "📚 Read 10 Pages Daily",
+    "description": "Read at least 10 pages of any book every day for 14 days.",
+    "habit_suggestion": "Read 10 Pages",
+    "emoji": "📚",
+    "start_date": "2026-06-10",
+    "end_date": "2026-06-24",
+    "xp_reward": 200,
+    "participant_count": 0,
+    "is_active": true
+  },
+  {
+    "id": "event_003",
+    "name": "💧 Hydration Challenge",
+    "description": "Drink 8 glasses of water daily for 10 days.",
+    "habit_suggestion": "8 Glasses of Water",
+    "emoji": "💧",
+    "start_date": "2026-06-11",
+    "end_date": "2026-06-21",
+    "xp_reward": 150,
+    "participant_count": 0,
+    "is_active": true
+  },
+  {
+    "id": "event_004",
+    "name": "🧘 Morning Meditation",
+    "description": "Meditate for 10 minutes every morning for 21 days.",
+    "habit_suggestion": "10 Min Morning Meditation",
+    "emoji": "🧘",
+    "start_date": "2026-06-06",
+    "end_date": "2026-06-27",
+    "xp_reward": 300,
+    "participant_count": 0,
+    "is_active": true
+  }
+]

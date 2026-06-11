@@ -605,6 +605,26 @@ hr {
     to { transform: rotate(360deg); }
 }
 
+/* ── LIGHT THEME HIGH CONTRAST FIX ──────────────────────────────────────────
+   Override styles specifically for light theme to ensure readability.
+   These are applied when the body has data-theme="light"
+*/
+[data-theme="light"] {
+    --text: #101828 !important;
+    --text2: #475467 !important;
+    --text3: #667085 !important;
+    --glass: rgba(255, 255, 255, 0.9) !important;
+    --glass-heavy: rgba(255, 255, 255, 0.97) !important;
+    --border2: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Ensure text is always readable in light theme */
+[data-theme="light"] .glass-card,
+[data-theme="light"] [data-testid="stMetric"],
+[data-theme="light"] .habit-card {
+    background: rgba(255, 255, 255, 0.92) !important;
+}
+
 /* ── RESPONSIVE ADJUSTMENTS ─────────────────────────────────────────────────
    Ensure the app looks great on all screen sizes.
 */

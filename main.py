@@ -1,39 +1,42 @@
 """
 =============================================================================
-HABIT.SPACE - Main Application Entry Point
+HABIT.SPACE - Main Application Entry Point (Game Edition)
 =============================================================================
 This is the central hub of the Habit Builder application. It orchestrates:
+- User authentication (login/register)
 - Page routing and navigation
 - Theme management (Dark/Light mode)
 - Data persistence (loading/saving habits)
 - UI rendering with celebration effects
+- Gamification features (XP, levels, rankings, events)
 
 Architecture Overview:
 ┌─────────────────────────────────────────────────────────────┐
 │                     Streamlit Frontend                       │
 ├─────────────────────────────────────────────────────────────┤
-│  Navigation Bar  │  Page Content  │  Theme Toggle            │
+│  Auth Screen  │  Navigation Bar  │  Theme Toggle             │
 ├─────────────────────────────────────────────────────────────┤
 │                    Session State (Data)                      │
 ├─────────────────────────────────────────────────────────────┤
-│  Habits List  │  Active Page  │  Theme  │  Selected Habit   │
+│  User  │  Habits List  │  Active Page  │  Theme  │  Events  │
 └─────────────────────────────────────────────────────────────┘
-                      ↓
+                       ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   Business Logic Layer                       │
-│  (src/habits.py, src/calendars.py, src/ui_components.py)    │
+│  (src/habits.py, src/auth.py, src/calendars.py,            │
+│   src/ui_components.py)                                      │
 └─────────────────────────────────────────────────────────────┘
-                      ↓
+                       ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                   Storage Layer                              │
-│  (src/storage.py → data/habits.json)                         │
+│  (src/storage.py → data/habits.json, data/users.json)       │
 └─────────────────────────────────────────────────────────────┘
 
 Design Principles:
 1. Single Responsibility: Each function does one thing well
 2. Fail Gracefully: Handle missing data without crashing
 3. Visual Feedback: Celebrate wins, acknowledge effort
-4. Smooth Transitions: No jarring page changes
+4. Gamification: Make habit building feel like a game
 =============================================================================
 """
 
@@ -42,9 +45,15 @@ import os
 from datetime import date
 
 # ── MODULE IMPORTS ──────────────────────────────────────────────────────────
-# Importing from our modular architecture keeps code organized and testable.
 from src.habits import Habit, add_habit, delete_habit
 from src.storage import load_habits, save_habits
+from src.auth import (
+    User, Event,
+    register_user, login_user, get_user_by_username, update_user,
+    load_events, save_events, get_global_rankings, get_user_rank_position,
+    check_achievements, ACHIEVEMENTS,
+    XP_HABIT_COMPLETION, XP_STREAK_BONUS
+)
 from src.ui_components import (
     render_top_nav,
     glass_card_start,
@@ -63,12 +72,11 @@ from src.calendars import render_global_calendar, render_habit_calendar, render_
 # CONFIGURATION & INITIALIZATION
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Configure the Streamlit page with our branding
 st.set_page_config(
-    page_title="habit.space",      # Browser tab title
-    page_icon="🔥",                 # Browser tab icon
-    layout="wide",                  # Use full width
-    initial_sidebar_state="collapsed"  # Hide sidebar by default
+    page_title="habit.space - Game Edition",
+    page_icon="🎮",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 
@@ -79,24 +87,11 @@ st.set_page_config(
 def apply_design():
     """
     Applies the visual design system to the entire app.
-    
-    This function:
-    1. Sets CSS variables based on current theme
-    2. Loads our custom stylesheet
-    3. Injects Google Fonts for typography
-    4. Applies theme-specific colors and effects
-    
-    Theme System:
-    - Dark Theme: Deep midnight colors with purple accents
-    - Light Theme: Clean frosted glass with soft shadows
-    
-    The CSS variables (--bg, --glass, --text, etc.) are used throughout
-    the app for consistent styling that can be changed in one place.
+    Includes theme colors and light theme high-contrast fixes.
     """
     theme = st.session_state.get("theme", "Dark")
     
     if theme == "Dark":
-        # Dark theme: Professional, easy on eyes for night use
         colors = """
         :root {
             --bg: linear-gradient(135deg, #0D0F14 0%, #1A1C25 100%);
@@ -114,41 +109,41 @@ def apply_design():
             --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
         }
         """
+        theme_attr = 'data-theme="dark"'
     else:
-        # Light theme: Clean, modern, iOS-like frosted glass
         colors = """
         :root {
-            --bg: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
-            --glass: rgba(255, 255, 255, 0.75);
-            --glass-heavy: rgba(255, 255, 255, 0.95);
-            --text: #1E293B;
-            --text2: #64748B;
-            --text3: #94A3B8;
-            --accent: #6366F1;
-            --accent2: #6366F1;
-            --success: #10B981;
-            --danger: #EF4444;
-            --warning: #F5A623;
-            --border2: rgba(0, 0, 0, 0.08);
-            --shadow: 0 10px 40px 0 rgba(31, 38, 135, 0.07);
+            --bg: linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%);
+            --glass: rgba(255, 255, 255, 0.9);
+            --glass-heavy: rgba(255, 255, 255, 0.97);
+            --text: #101828;
+            --text2: #475467;
+            --text3: #667085;
+            --accent: #4F46E5;
+            --accent2: #4F46E5;
+            --success: #027A48;
+            --danger: #DC2626;
+            --warning: #D97706;
+            --border2: rgba(0, 0, 0, 0.12);
+            --shadow: 0 10px 40px 0 rgba(16, 24, 40, 0.1);
         }
         """
+        theme_attr = 'data-theme="light"'
     
-    # Load external CSS file for additional styling
     try:
         with open("assets/style.css", "r", encoding="utf-8") as f:
             css_code = f.read()
     except FileNotFoundError:
         css_code = ""
-        st.warning("CSS file not found. Some styling may be missing.")
     
-    # Load Google Fonts for premium typography
     fonts = '''
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     '''
     
-    # Inject all styles into the page
-    st.html(f"{fonts}<style>{colors}\n{css_code}</style>")
+    st.html(f'''
+    <div {theme_attr}>
+    {fonts}<style>{colors}\n{css_code}</style>
+    ''')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -156,80 +151,111 @@ def apply_design():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def init_app():
-    """
-    Initializes the application state.
-    
-    This function runs once at app startup and:
-    1. Sets default theme preference
-    2. Sets default active page
-    3. Loads habits from storage into session state
-    
-    Session state persists across page reruns but clears on browser close,
-    which is why we reload from disk each time.
-    """
-    # Initialize theme preference
+    """Initialize the application state."""
     if "theme" not in st.session_state:
         st.session_state.theme = "Dark"
     
-    # Initialize page navigation
     if "active_page" not in st.session_state:
         st.session_state.active_page = "Today"
     
-    # Initialize selected habit (for detail view)
     if "selected_habit" not in st.session_state:
         st.session_state.selected_habit = None
     
-    # Load habits from persistent storage
     if "habits" not in st.session_state:
         raw_habits = load_habits()
         st.session_state.habits = [Habit.from_dict(h) for h in raw_habits]
+    
+    if "current_user" not in st.session_state:
+        st.session_state.current_user = None
 
 
 def save_data():
-    """
-    Persists current habit data to disk.
-    
-    Called after any modification to ensure data isn't lost.
-    Converts Habit objects to dictionaries for JSON serialization.
-    """
+    """Persist habit data to disk."""
     habits_data = [h.to_dict() for h in st.session_state.habits]
     save_habits(habits_data)
+
+
+def save_user_data():
+    """Persist user data to disk."""
+    if st.session_state.current_user:
+        update_user(st.session_state.current_user)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUTHENTICATION PAGES
+# ═══════════════════════════════════════════════════════════════════════════
+
+def page_login():
+    """Login/Register page."""
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 32px;">
+            <h1 style="font-size: 42px; margin: 0; font-family:'Space Grotesk', sans-serif;">
+                habit<span style="color:var(--accent2);">.space</span>
+            </h1>
+            <p style="color: var(--text2); font-size: 18px; margin-top: 8px;">
+                🎮 Level up your life, one habit at a time
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["🔑 Login", "✨ Register"])
+        
+        with tab1:
+            login_username = st.text_input("Username", key="login_user", 
+                                          placeholder="Enter your username")
+            login_password = st.text_input("Password", key="login_pass", 
+                                          type="password", placeholder="Enter your password")
+            
+            if st.button("Login", type="primary", use_container_width=True):
+                user, error = login_user(login_username, login_password)
+                if user:
+                    st.session_state.current_user = user
+                    st.session_state.active_page = "Today"
+                    st.rerun()
+                else:
+                    st.error(error)
+        
+        with tab2:
+            reg_username = st.text_input("Choose Username", key="reg_user",
+                                        placeholder="Pick a unique username")
+            reg_password = st.text_input("Password", key="reg_pass",
+                                        type="password", placeholder="At least 4 characters")
+            reg_confirm = st.text_input("Confirm Password", key="reg_confirm",
+                                       type="password", placeholder="Confirm your password")
+            
+            if st.button("Create Account", type="primary", use_container_width=True):
+                if reg_password != reg_confirm:
+                    st.error("Passwords do not match!")
+                else:
+                    user, error = register_user(reg_username, reg_password)
+                    if user:
+                        st.success("Account created! Please login.")
+                    else:
+                        st.error(error)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PAGE: TODAY (Main Dashboard)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def page_today(habits):
-    """
-    The main dashboard showing today's habits and progress.
+def page_today(habits, user: User):
+    """The main dashboard with game-like features."""
+    # ── User Status Bar ──
+    render_user_status_bar(user)
     
-    This is the "home screen" users see most often. It's designed to:
-    1. Show quick stats for motivation
-    2. Display monthly activity overview
-    3. Provide easy check-in for today's habits
-    4. Celebrate completions with visual feedback
-    
-    Layout:
-    ┌──────────────────────────────────────────────┐
-    │  Your Progress                               │
-    ├──────────────────────────────────────────────┤
-    │  [Stats Cards: Total | Completed | Streak]  │
-    ├──────────────────────────────────────────────┤
-    │  Monthly Activity Calendar                   │
-    ├──────────────────────────────────────────────┤
-    │  Motivation Message                          │
-    ├──────────────────────────────────────────────┤
-    │  Today's Tasks                               │
-    │  [Habit 1]  [Check-in]  [Details]           │
-    │  [Habit 2]  [Check-in]  [Details]           │
-    │  [Habit 3]  [Check-in]  [Details]           │
-    └──────────────────────────────────────────────┘
-    """
     st.markdown("# Your Progress")
     
     # ── Quick Stats ──
     render_stats_cards(habits)
+    
+    # ── XP & Level Progress ──
+    render_xp_progress(user)
+    
+    # ── User Parameters ──
+    render_user_parameters(user)
     
     # ── Monthly Activity Calendar ──
     glass_card_start("Monthly Activity", "See your consistency at a glance")
@@ -269,11 +295,9 @@ def page_today(habits):
             completed = h.is_completed_today()
             streak = h.get_current_streak()
             
-            # Three-column layout: Name | Action | Details
             col1, col2, col3 = st.columns([6, 2, 2])
             
             with col1:
-                # Habit name with emoji
                 status_icon = "✅" if completed else "⬜"
                 st.markdown(f"**{status_icon} {h.emoji} {h.name}**")
                 if streak > 0:
@@ -281,23 +305,39 @@ def page_today(habits):
             
             with col2:
                 if not completed:
-                    # Check-in button for incomplete habits
                     if st.button("Check in", key=f"check_{h.name}", 
                                 use_container_width=True, type="primary"):
                         h.mark_complete()
+                        # Award XP
+                        xp_earned = XP_HABIT_COMPLETION
+                        if streak > 0:
+                            xp_earned += XP_STREAK_BONUS
+                        user.add_xp(xp_earned)
+                        user.total_completions += 1
+                        user.update_parameters(habits)
+                        
+                        # Check achievements
+                        new_achievements = check_achievements(user, habits)
+                        
                         save_data()
-                        # Show celebration effect
-                        celebration_effect(h.name)
+                        save_user_data()
+                        
+                        # Show celebration
+                        celebration_effect(f"{h.name} (+{xp_earned} XP)")
+                        
+                        if new_achievements:
+                            for ach_id in new_achievements:
+                                ach = ACHIEVEMENTS[ach_id]
+                                st.toast(f"🏆 Achievement Unlocked: {ach['icon']} {ach['name']}!")
+                        
                         st.rerun()
                 else:
-                    # Show completed status
                     st.markdown(
                         '<div style="color: var(--success); font-weight: 600; padding: 8px 0;">✓ Done</div>',
                         unsafe_allow_html=True
                     )
             
             with col3:
-                # Details button to view habit history
                 if st.button("Details", key=f"detail_{h.name}", 
                             use_container_width=True):
                     st.session_state.selected_habit = h.name
@@ -307,21 +347,117 @@ def page_today(habits):
             st.divider()
 
 
+def render_user_status_bar(user: User):
+    """Render the user status bar with level, XP, and rank."""
+    rank_info = user.get_rank_info()
+    
+    st.markdown(f'''
+    <div style="
+        background: var(--glass);
+        border: 1px solid {rank_info['color']}44;
+        border-radius: var(--radius-xl);
+        padding: var(--space-md) var(--space-lg);
+        margin-bottom: var(--space-lg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    ">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 28px;">{rank_info['icon']}</span>
+            <div>
+                <div style="font-size: 14px; font-weight: 700; color: {rank_info['color']};">
+                    Level {user.level} • {user.title}
+                </div>
+                <div style="font-size: 12px; color: var(--text2);">
+                    {user.xp} / {user.xp_to_next_level} XP
+                </div>
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 12px; color: var(--text2);">Global Rank</div>
+            <div style="font-size: 20px; font-weight: 700; color: var(--text);">
+                #{get_user_rank_position(user.username) or '—'}
+            </div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_xp_progress(user: User):
+    """Render XP progress bar."""
+    progress = user.xp_progress * 100
+    st.markdown(f'''
+    <div style="margin: var(--space-md) 0;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="font-size: 12px; color: var(--text2);">XP Progress</span>
+            <span style="font-size: 12px; color: var(--text2);">{user.xp}/{user.xp_to_next_level}</span>
+        </div>
+        <div style="
+            width: 100%;
+            height: 8px;
+            background: rgba(128, 128, 128, 0.2);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        ">
+            <div style="
+                width: {progress}%;
+                height: 100%;
+                background: linear-gradient(90deg, var(--accent2), #6366F1);
+                border-radius: var(--radius-full);
+                transition: width 0.5s ease;
+            "></div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_user_parameters(user: User):
+    """Render user parameter stats as a game dashboard."""
+    glass_card_start("📊 Character Stats", "Your habit-building attributes")
+    
+    params = [
+        ("💪 Discipline", user.discipline, "How consistent you are with daily habits"),
+        ("🔄 Consistency", user.consistency, "Your streak maintenance ability"),
+        ("🎯 Dedication", user.dedication, "Total effort and time invested"),
+        ("🧠 Focus", user.focus, "Completion rate across all habits"),
+    ]
+    
+    for name, value, desc in params:
+        color = "#10B981" if value >= 70 else "#F5A623" if value >= 40 else "#EF4444"
+        st.markdown(f'''
+        <div style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 14px; font-weight: 600; color: var(--text);">{name}</span>
+                <span style="font-size: 14px; font-weight: 700; color: {color};">{value}</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text3); margin-bottom: 6px;">{desc}</div>
+            <div style="
+                width: 100%;
+                height: 6px;
+                background: rgba(128, 128, 128, 0.15);
+                border-radius: var(--radius-full);
+                overflow: hidden;
+            ">
+                <div style="
+                    width: {value}%;
+                    height: 100%;
+                    background: {color};
+                    border-radius: var(--radius-full);
+                    transition: width 0.5s ease;
+                "></div>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    glass_card_end()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # PAGE: MY HABITS (Management)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def page_manage(habits):
-    """
-    Habit management page for creating and deleting habits.
-    
-    Features:
-    1. Create new habits with custom emoji and type
-    2. View all active habits with their ranks
-    3. Delete habits that are no longer needed
-    
-    The creation form is expanded by default to encourage action.
-    """
+def page_manage(habits, user: User):
+    """Habit management page."""
     st.markdown("# Habit Lab")
     st.caption("Create and manage your habits")
     
@@ -343,7 +479,6 @@ def page_manage(habits):
                 "💧", "😴", "🎯", "✍️", "🎨", "🌱"
             ])
         
-        # Create button
         if st.button("Create Habit", type="primary", use_container_width=True):
             if not name or not name.strip():
                 st.error("Please enter a habit name.")
@@ -352,8 +487,12 @@ def page_manage(habits):
                 if error:
                     st.error(error)
                 else:
-                    st.success(f"🎉 Habit '{name}' created! Keep the streak going!")
+                    user.habits_created += 1
+                    user.add_xp(25)  # Bonus XP for creating a habit
+                    check_achievements(user, habits)
+                    st.success(f"🎉 Habit '{name}' created! (+25 XP)")
                     save_data()
+                    save_user_data()
                     st.rerun()
     
     # ── Active Habits List ──
@@ -369,12 +508,10 @@ def page_manage(habits):
             c1, c2 = st.columns([8, 2])
             
             with c1:
-                # Habit info with rank badge
                 st.markdown(f"**{h.emoji} {h.name}**")
                 st.caption(f"{rank_badge(rank, text_only=True)} • {streak} day streak")
             
             with c2:
-                # Delete button (with confirmation)
                 if st.button("Remove", key=f"del_{h.name}", type="secondary"):
                     delete_habit(habits, h.name)
                     st.success(f"Removed '{h.name}'")
@@ -385,52 +522,36 @@ def page_manage(habits):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PAGE: HABIT DETAIL (Deep Dive)
+# PAGE: HABIT DETAIL
 # ═══════════════════════════════════════════════════════════════════════════
 
 def page_detail(habits, name):
-    """
-    Detailed view for a single habit.
-    
-    Shows comprehensive statistics and history:
-    1. Monthly calendar with completion history
-    2. Current and longest streaks
-    3. Completion rate
-    4. Visual streak timeline
-    
-    This view helps users understand their patterns and stay motivated.
-    """
+    """Detailed view for a single habit."""
     habit = next((h for h in habits if h.name == name), None)
     if not habit:
         st.error("Habit not found.")
         return
     
-    # Back button
     if st.button("← Back to Dashboard"):
         st.session_state.active_page = "Today"
         st.rerun()
     
-    # ── Habit Header ──
     st.markdown(f"# {habit.emoji} {habit.name}")
     
-    # ── Quick Stats ──
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Current Streak", f"{habit.get_current_streak()} 🔥")
     c2.metric("Longest Streak", f"{habit.get_longest_streak()} 🏆")
     c3.metric("Total Completions", f"{habit.get_total_completions()} ✓")
     c4.metric("30-Day Rate", f"{habit.get_completion_rate(30)}%")
     
-    # ── Monthly Calendar ──
     glass_card_start(f"{habit.emoji} Progress History")
     render_habit_calendar(habit)
     glass_card_end()
     
-    # ── Streak Visualization ──
     glass_card_start("Last 30 Days")
     render_streak_visualization(habit)
     glass_card_end()
     
-    # ── Rank Display ──
     rank = habit.get_rank()
     st.markdown(f"### Current Rank")
     st.markdown(f'''
@@ -454,26 +575,214 @@ def page_detail(habits, name):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PAGE: AI COACH (Placeholder)
+# PAGE: EVENTS (Challenges)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def page_coach():
-    """
-    AI Coach page (coming soon).
+def page_events(user: User):
+    """Events/Challenges page."""
+    st.markdown("# 🎯 Challenges & Events")
+    st.caption("Join community challenges to level up faster!")
     
-    Future feature: AI-powered habit recommendations and insights.
-    """
-    st.markdown("# AI Coach")
-    st.info("🤖 Your personal habit coach is resting. Coming back soon with personalized insights!")
+    events = load_events()
     
-    glass_card_start("What to expect")
-    st.markdown("""
-    - **Personalized Tips**: Get advice based on your patterns
-    - **Optimal Timing**: Learn when you're most likely to succeed
-    - **Smart Reminders**: Notifications that actually help
-    - **Progress Insights**: Understand what's working and what's not
-    """)
+    # ── Active Events ──
+    st.markdown("### Active Challenges")
+    
+    active_events = [e for e in events if e.is_active]
+    
+    if not active_events:
+        st.info("No active events at the moment. Check back soon!")
+    else:
+        for event in active_events:
+            is_joined = event.id in user.joined_events
+            is_completed = event.id in user.completed_events
+            
+            glass_card_start(f"{event.emoji} {event.name}")
+            
+            st.markdown(f"**{event.description}**")
+            st.caption(f"📅 {event.start_date} to {event.end_date}")
+            st.caption(f"🏆 Reward: {event.xp_reward} XP")
+            st.caption(f"📝 Suggested habit: {event.habit_suggestion}")
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                if is_completed:
+                    st.success("✅ Completed! Reward claimed!")
+                elif is_joined:
+                    st.info("🔄 In Progress - Keep going!")
+            
+            with col2:
+                if not is_joined and not is_completed:
+                    if st.button("Join Challenge", key=f"join_{event.id}", 
+                                type="primary", use_container_width=True):
+                        user.joined_events.append(event.id)
+                        user.events_joined += 1
+                        user.add_xp(25)  # Bonus for joining
+                        check_achievements(user)
+                        update_user(user)
+                        save_events(events)
+                        st.success(f"Joined! +25 XP")
+                        st.rerun()
+            
+            glass_card_end()
+    
+    # ── Completed Events ──
+    if user.completed_events:
+        st.markdown("### Completed Challenges")
+        for event in events:
+            if event.id in user.completed_events:
+                st.markdown(f"✅ **{event.name}** - {event.xp_reward} XP earned")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PAGE: RANKINGS (Leaderboard)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def page_rankings(user: User):
+    """Global rankings/leaderboard page."""
+    st.markdown("# 🏆 Global Rankings")
+    st.caption("See where you stand among habit builders!")
+    
+    # ── User's Rank ──
+    user_position = get_user_rank_position(user.username)
+    rank_info = user.get_rank_info()
+    
+    st.markdown(f'''
+    <div style="
+        background: var(--glass);
+        border: 2px solid {rank_info['color']};
+        border-radius: var(--radius-xl);
+        padding: var(--space-lg);
+        margin-bottom: var(--space-xl);
+        text-align: center;
+    ">
+        <div style="font-size: 48px; margin-bottom: 8px;">{rank_info['icon']}</div>
+        <div style="font-size: 14px; color: var(--text2);">Your Global Rank</div>
+        <div style="font-size: 36px; font-weight: 700; color: {rank_info['color']};">
+            #{user_position if user_position > 0 else '—'}
+        </div>
+        <div style="font-size: 18px; color: var(--text); margin-top: 8px;">
+            Level {user.level} • {user.title}
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # ── Leaderboard ──
+    rankings = get_global_rankings(10)
+    
+    glass_card_start("Top Players")
+    
+    for rank_num, player in rankings:
+        player_rank = player.get_rank_info()
+        is_current_user = player.username == user.username
+        
+        bg_style = ""
+        if rank_num == 1:
+            bg_style = "background: rgba(255, 215, 0, 0.1);"
+        elif rank_num == 2:
+            bg_style = "background: rgba(192, 192, 192, 0.1);"
+        elif rank_num == 3:
+            bg_style = "background: rgba(205, 127, 50, 0.1);"
+        elif is_current_user:
+            bg_style = "background: rgba(123, 97, 255, 0.1);"
+        
+        st.markdown(f'''
+        <div style="
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 8px;
+            {bg_style}
+            border: 1px solid {'var(--accent2)' if is_current_user else 'var(--border2)'};
+        ">
+            <div style="font-size: 20px; font-weight: 700; color: var(--text); width: 30px;">
+                {'🥇' if rank_num == 1 else '🥈' if rank_num == 2 else '🥉' if rank_num == 3 else f'#{rank_num}'}
+            </div>
+            <div style="font-size: 24px;">{player_rank['icon']}</div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; color: var(--text);">
+                    {player.username}
+                    {'(You)' if is_current_user else ''}
+                </div>
+                <div style="font-size: 12px; color: var(--text2);">
+                    {player.title} • Level {player.level}
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 16px; font-weight: 700; color: var(--accent2);">
+                    {player.xp} XP
+                </div>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+    
     glass_card_end()
+    
+    # ── Total Players ──
+    total_players = len(get_global_rankings(9999))
+    st.caption(f"Total players: {total_players}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PAGE: ACHIEVEMENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def page_achievements(user: User):
+    """Achievements page."""
+    st.markdown("# 🏆 Achievements")
+    st.caption("Badges you've earned on your journey")
+    
+    # Check for new achievements
+    new_achievements = check_achievements(user, st.session_state.habits)
+    if new_achievements:
+        for ach_id in new_achievements:
+            ach = ACHIEVEMENTS[ach_id]
+            st.success(f"🎉 New Achievement: {ach['icon']} {ach['name']}!")
+        save_user_data()
+    
+    # ── Earned Achievements ──
+    st.markdown("### Earned")
+    
+    earned_count = 0
+    for ach_id, ach in ACHIEVEMENTS.items():
+        if ach_id in user.achievements:
+            earned_count += 1
+            glass_card_start(f"{ach['icon']} {ach['name']}")
+            st.markdown(f"*{ach['description']}*")
+            st.caption(f"Reward: {ach['xp_reward']} XP")
+            glass_card_end()
+    
+    if earned_count == 0:
+        st.info("No achievements yet. Keep building habits to earn badges!")
+    
+    # ── Locked Achievements ──
+    st.markdown("### Locked")
+    
+    locked_count = 0
+    for ach_id, ach in ACHIEVEMENTS.items():
+        if ach_id not in user.achievements:
+            locked_count += 1
+            st.markdown(f"""
+            <div style="
+                opacity: 0.4;
+                padding: 12px 16px;
+                margin-bottom: 8px;
+                border: 1px solid var(--border2);
+                border-radius: var(--radius-lg);
+            ">
+                <div style="font-size: 20px; font-weight: 600; color: var(--text);">
+                    🔒 {ach['name']}
+                </div>
+                <div style="font-size: 13px; color: var(--text2);">
+                    {ach['description']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.caption(f"Progress: {earned_count}/{len(ACHIEVEMENTS)} achievements earned")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -481,51 +790,85 @@ def page_coach():
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main():
-    """
-    Main application entry point.
-    
-    Execution flow:
-    1. Initialize app state and load data
-    2. Apply visual design system
-    3. Render navigation bar
-    4. Route to appropriate page based on active_page
-    """
-    # Step 1: Initialize
+    """Main application entry point."""
     init_app()
-    
-    # Step 2: Apply design
     apply_design()
     
-    # Step 3: Render navigation
-    render_top_nav(
-        st.session_state.habits,
-        st.session_state.active_page,
-        st.session_state.theme
-    )
+    # Check if user is logged in
+    if st.session_state.current_user is None:
+        page_login()
+        return
     
-    # Step 4: Route to page
+    user = st.session_state.current_user
+    
+    # ── Render Navigation ──
+    render_game_nav(user)
+    
+    # ── Route to Page ──
     habits = st.session_state.habits
     active = st.session_state.active_page
     
-    # Centered content area (with side margins)
     _, stage, _ = st.columns([1, 10, 1])
     with stage:
         if active == "Today":
-            page_today(habits)
+            page_today(habits, user)
         elif active == "My Habits":
-            page_manage(habits)
+            page_manage(habits, user)
         elif active == "Habit Detail":
             page_detail(habits, st.session_state.get("selected_habit"))
-        elif active == "AI Coach":
-            page_coach()
+        elif active == "Events":
+            page_events(user)
+        elif active == "Rankings":
+            page_rankings(user)
+        elif active == "Achievements":
+            page_achievements(user)
         else:
-            # Fallback for unknown pages
             st.error("Page not found.")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# APPLICATION STARTUP
-# ═══════════════════════════════════════════════════════════════════════════
+def render_game_nav(user: User):
+    """Render navigation bar with game-themed pages."""
+    c1, c2, c3 = st.columns([3, 5, 2])
+    
+    with c1:
+        st.markdown(
+            '<h1 style="font-size: 26px; margin:0; font-family:\'Space Grotesk\', sans-serif; '
+            'font-weight: 700;">'
+            'habit<span style="color:var(--accent2);">.space</span>'
+            '<span style="font-size: 12px; color: var(--text2); margin-left: 8px;">🎮</span>'
+            '</h1>', 
+            unsafe_allow_html=True
+        )
+    
+    with c2:
+        nav_cols = st.columns(5)
+        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements"]
+        icons = ["🏠", "📋", "🎯", "🏆", "🎖️"]
+        
+        for i, (p, icon) in enumerate(zip(pages, icons)):
+            is_active = (st.session_state.active_page == p) or (p == "Today" and st.session_state.active_page == "Habit Detail")
+            label = f"{icon} **{p}**" if is_active else f"{icon} {p}"
+            
+            if nav_cols[i].button(label, key=f"nav_{p}", use_container_width=True):
+                st.session_state.active_page = p
+                st.rerun()
+    
+    with c3:
+        # User avatar and logout
+        col_a, col_b = st.columns(2)
+        with col_a:
+            theme_icon = "🌙" if st.session_state.theme == "Dark" else "☀️"
+            if st.button(theme_icon, key="theme_toggle", 
+                        help=f"Switch to {'Light' if st.session_state.theme == 'Dark' else 'Dark'} theme"):
+                st.session_state.theme = "Light" if st.session_state.theme == "Dark" else "Dark"
+                st.rerun()
+        with col_b:
+            if st.button("🚪", key="logout", help="Logout"):
+                st.session_state.current_user = None
+                st.rerun()
+    
+    st.divider()
+
 
 if __name__ == "__main__":
     main()
