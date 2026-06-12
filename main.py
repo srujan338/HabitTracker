@@ -41,23 +41,105 @@ Design Principles:
 """
 
 import streamlit as st
-import os
+import hashlib
 from datetime import date
+try:
+    from streamlit_echarts import st_echarts
+except ImportError:
+    st_echarts = None
 
 # ── MODULE IMPORTS ──────────────────────────────────────────────────────────
 from src.habits import Habit, add_habit, delete_habit
-from src.storage import load_habits, save_habits
-from src.i18n import translate, set_language
-from src.ai import get_habit_recommendations, call_ollama
+from src.storage import load_habits, save_habit, delete_habit as db_delete_habit
+from src.i18n import t, render_language_selector, set_active_language, DEFAULT_LANGUAGE
 from src.auth import (
     User, Event,
     register_user, login_user, get_user_by_username, update_user,
+    get_google_oauth_url, login_with_google_code, apply_onboarding_profile,
     load_events, save_events, get_global_rankings, get_user_rank_position,
     check_achievements, ACHIEVEMENTS,
     XP_HABIT_COMPLETION, XP_STREAK_BONUS
 )
-from src.ui_components import render_top_nav, render_ai_companion, glass_card_start, glass_card_end, rank_badge, render_stats_cards, celebration_effect, motivation_message, render_empty_state, get_streak_flame_emoji
+from src.ui_components import render_top_nav, render_pet_companion, glass_card_start, glass_card_end, rank_badge, render_stats_cards, celebration_effect, motivation_message, render_empty_state, get_streak_flame_emoji
 from src.calendars import render_global_calendar, render_habit_calendar, render_streak_visualization
+
+
+STARTER_HABITS = {
+    "Health and energy": [
+        ("Drink water after waking", "adopt", "💧"),
+        ("10 minute walk", "adopt", "🏃"),
+    ],
+    "Learning and skills": [
+        ("Read 10 pages", "adopt", "📚"),
+        ("Practice one skill block", "adopt", "🎯"),
+    ],
+    "Mindfulness": [
+        ("2 minute breathing reset", "adopt", "🧘"),
+        ("Write one reflection", "adopt", "✍️"),
+    ],
+    "Productivity": [
+        ("Plan top 3 tasks", "adopt", "📋"),
+        ("No phone first 20 minutes", "quit", "📵"),
+    ],
+    "Creativity": [
+        ("Make one small thing", "adopt", "🎨"),
+        ("Capture one idea", "adopt", "💡"),
+    ],
+    "Social confidence": [
+        ("Send one thoughtful message", "adopt", "💬"),
+        ("Start one small conversation", "adopt", "🤝"),
+    ],
+}
+
+ONBOARDING_STEPS = [
+    {
+        "key": "identity",
+        "title": "What feels most like your current style?",
+        "subtitle": "Pick the one that sounds closest. This sets the first shape of your traits.",
+        "options": [
+            "I follow a plan and like checking things off",
+            "I get bursts of energy and enjoy experimenting",
+            "I am steady when the system is simple",
+            "I restart well after missing days",
+        ],
+        "mode": "single",
+    },
+    {
+        "key": "motivation",
+        "title": "What usually keeps you moving?",
+        "subtitle": "Choose the strongest signal. You can refine this later through your habits.",
+        "options": ["Clear targets", "Variety and novelty", "Accountability", "A calm routine"],
+        "mode": "single",
+    },
+    {
+        "key": "energy",
+        "title": "When is your energy easiest to use?",
+        "subtitle": "This helps the companion time its encouragement style.",
+        "options": ["Morning", "Afternoon", "Evening", "Late night"],
+        "mode": "single",
+    },
+    {
+        "key": "motivation_style",
+        "title": "How should your companion talk to you?",
+        "subtitle": "This changes praise, reminders, and check-in messages.",
+        "options": ["Gentle encouragement", "Direct challenge", "Playful praise", "Quiet reminders"],
+        "mode": "single",
+    },
+    {
+        "key": "focus_areas",
+        "title": "What do you want to grow first?",
+        "subtitle": "Choose a few areas so your starter habits feel relevant.",
+        "options": [
+            "Health and energy",
+            "Learning and skills",
+            "Mindfulness",
+            "Productivity",
+            "Creativity",
+            "Social confidence",
+        ],
+        "mode": "multi",
+    },
+]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -131,18 +213,59 @@ def init_app():
         else:
             st.session_state.habits = []
 
+    if "oauth_checked" not in st.session_state:
+        st.session_state.oauth_checked = False
+
+    set_active_language(st.session_state.get("app_language", DEFAULT_LANGUAGE))
+
 
 def save_data():
-    """Persist habit data to MongoDB."""
+    """Persist habit data to Supabase."""
     if st.session_state.current_user:
-        habits_data = [h.to_dict() for h in st.session_state.habits]
-        save_habits(st.session_state.current_user.username, habits_data)
+        username = st.session_state.current_user.username
+        for habit in st.session_state.habits:
+            save_habit(username, habit.to_dict())
 
 
 def save_user_data():
     """Persist user data to disk."""
     if st.session_state.current_user:
         update_user(st.session_state.current_user)
+
+
+def set_logged_in_user(user: User):
+    """Store the active user and load that user's habits."""
+    st.session_state.current_user = user
+    raw_habits = load_habits(user.username)
+    st.session_state.habits = [Habit.from_dict(h) for h in raw_habits]
+    st.session_state.active_page = "Today"
+
+
+def handle_google_oauth_callback():
+    """Complete Google OAuth when Supabase redirects back with a code."""
+    if st.session_state.get("oauth_checked"):
+        return
+
+    st.session_state.oauth_checked = True
+
+    raw_params = dict(st.query_params) if hasattr(st, "query_params") else {}
+    code = raw_params.get("code") or ""
+    if isinstance(code, list):
+        code = code[0] if code else ""
+
+    if not code:
+        return
+
+    user, error = login_with_google_code(code)
+    if user:
+        set_logged_in_user(user)
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.rerun()
+    else:
+        st.error(error)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -160,49 +283,200 @@ def page_login():
                 habit<span style="color:var(--accent2);">.space</span>
             </h1>
             <p style="color: var(--text2); font-size: 18px; margin-top: 8px;">
-                🎮 Level up your life, one habit at a time
+                {t('app.subtitle')}
             </p>
         </div>
         """, unsafe_allow_html=True)
         
-        tab1, tab2 = st.tabs(["🔑 Login", "✨ Register"])
+        tab1, tab2 = st.tabs([t("auth.login"), t("auth.register")])
         
         with tab1:
-            login_username = st.text_input("Username", key="login_user", 
+            login_username = st.text_input(t("auth.username"), key="login_user", 
                                           placeholder="Enter your username")
-            login_password = st.text_input("Password", key="login_pass", 
+            login_password = st.text_input(t("auth.password"), key="login_pass", 
                                           type="password", placeholder="Enter your password")
             
-            if st.button("Login", type="primary", use_container_width=True):
+            if st.button(t("auth.login_button"), type="primary", use_container_width=True):
                 user, error = login_user(login_username, login_password)
                 if user:
-                    st.session_state.current_user = user
-                    st.session_state.active_page = "Today"
+                    set_logged_in_user(user)
                     st.rerun()
                 else:
                     st.error(error)
             
-            st.markdown("<div style='text-align: center; margin: 16px 0;'>OR</div>", unsafe_allow_html=True)
-            if st.button("Login with Google", use_container_width=True):
-                st.info("Google Login integration is coming soon! Please use local login for now.")
+            st.markdown(f"<div style='text-align: center; margin: 16px 0;'>{t('auth.or')}</div>", unsafe_allow_html=True)
+            google_url, google_error = get_google_oauth_url()
+            if google_url:
+                st.link_button(t("auth.google_button"), google_url, use_container_width=True)
+            else:
+                st.warning(google_error)
         
         with tab2:
-            reg_username = st.text_input("Choose Username", key="reg_user",
+            reg_username = st.text_input(t("auth.username"), key="reg_user",
                                         placeholder="Pick a unique username")
-            reg_password = st.text_input("Password", key="reg_pass",
+            reg_password = st.text_input(t("auth.password"), key="reg_pass",
                                         type="password", placeholder="At least 4 characters")
-            reg_confirm = st.text_input("Confirm Password", key="reg_confirm",
+            reg_confirm = st.text_input(t("auth.confirm_password"), key="reg_confirm",
                                        type="password", placeholder="Confirm your password")
             
-            if st.button("Create Account", type="primary", use_container_width=True):
+            if st.button(t("auth.register_button"), type="primary", use_container_width=True):
                 if reg_password != reg_confirm:
-                    st.error("Passwords do not match!")
+                    st.error(t("auth.passwords_do_not_match"))
+                elif not reg_username.strip():
+                    st.error(t("auth.username_empty"))
+                elif len(reg_password) < 4:
+                    st.error(t("auth.password_too_short"))
                 else:
                     user, error = register_user(reg_username, reg_password)
                     if user:
-                        st.success("Account created! Please login.")
+                        set_logged_in_user(user)
+                        st.success(t("auth.account_created"))
+                        st.rerun()
                     else:
                         st.error(error)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PAGE: ONBOARDING QUIZ
+# ═══════════════════════════════════════════════════════════════════════════
+
+def page_onboarding(user: User):
+    """First-run quiz that builds the user's trait profile one step at a time."""
+    if "onboarding_step" not in st.session_state:
+        st.session_state.onboarding_step = 0
+    if "onboarding_answers" not in st.session_state:
+        st.session_state.onboarding_answers = {}
+
+    total_steps = len(ONBOARDING_STEPS) + 2
+    step_index = st.session_state.onboarding_step
+    progress = min((step_index + 1) / total_steps, 1.0)
+
+    st.markdown("# Personal Setup")
+    st.progress(progress)
+    st.caption(f"Step {step_index + 1} of {total_steps}")
+
+    if step_index < len(ONBOARDING_STEPS):
+        _render_onboarding_choice_step(ONBOARDING_STEPS[step_index])
+        return
+
+    if step_index == len(ONBOARDING_STEPS):
+        _render_starter_habit_step()
+        return
+
+    _render_companion_name_step(user)
+
+
+def _render_onboarding_choice_step(step: dict):
+    answers = st.session_state.onboarding_answers
+    selected = answers.get(step["key"], [] if step["mode"] == "multi" else None)
+
+    st.markdown(f"## {step['title']}")
+    st.caption(step["subtitle"])
+
+    for option in step["options"]:
+        is_selected = option in selected if isinstance(selected, list) else option == selected
+        label = f"{'✓ ' if is_selected else ''}{option}"
+        if st.button(label, key=f"quiz_{step['key']}_{option}", use_container_width=True):
+            if step["mode"] == "multi":
+                selected_values = list(selected or [])
+                if option in selected_values:
+                    selected_values.remove(option)
+                else:
+                    selected_values.append(option)
+                answers[step["key"]] = selected_values
+            else:
+                answers[step["key"]] = option
+                st.session_state.onboarding_step += 1
+            st.rerun()
+
+    nav_left, nav_right = st.columns([1, 1])
+    with nav_left:
+        if st.session_state.onboarding_step > 0 and st.button("Back", use_container_width=True):
+            st.session_state.onboarding_step -= 1
+            st.rerun()
+    with nav_right:
+        can_continue = bool(answers.get(step["key"]))
+        if st.button("Next", disabled=not can_continue, type="primary", use_container_width=True):
+            st.session_state.onboarding_step += 1
+            st.rerun()
+
+
+def _render_starter_habit_step():
+    answers = st.session_state.onboarding_answers
+    focus_areas = answers.get("focus_areas") or ["Health and energy", "Productivity"]
+    starter_choices = []
+    for area in focus_areas:
+        starter_choices.extend(STARTER_HABITS.get(area, []))
+
+    selected = set(answers.get("selected_starters", []))
+    st.markdown("## Pick your starting habits")
+    st.caption("Choose the habits that feel easy enough to begin today.")
+
+    for name, _, emoji in starter_choices:
+        is_selected = name in selected
+        label = f"{'✓ ' if is_selected else ''}{emoji} {name}"
+        if st.button(label, key=f"starter_{name}", use_container_width=True):
+            if is_selected:
+                selected.remove(name)
+            else:
+                selected.add(name)
+            answers["selected_starters"] = list(selected)
+            st.rerun()
+
+    nav_left, nav_right = st.columns([1, 1])
+    with nav_left:
+        if st.button("Back", use_container_width=True):
+            st.session_state.onboarding_step -= 1
+            st.rerun()
+    with nav_right:
+        if st.button("Next", disabled=not selected, type="primary", use_container_width=True):
+            st.session_state.onboarding_step += 1
+            st.rerun()
+
+
+def _render_companion_name_step(user: User):
+    answers = st.session_state.onboarding_answers
+
+    st.markdown("## Name your companion")
+    st.caption("This character will stay on the page, react to check-ins, and grow with your routine.")
+    companion_name = st.text_input(
+        "Companion name",
+        value=answers.get("companion_name", user.pet_name or "Buddy"),
+        label_visibility="collapsed",
+    )
+    answers["companion_name"] = companion_name.strip() or "Buddy"
+
+    nav_left, nav_right = st.columns([1, 1])
+    with nav_left:
+        if st.button("Back", use_container_width=True):
+            st.session_state.onboarding_step -= 1
+            st.rerun()
+    with nav_right:
+        if st.button("Start my dashboard", type="primary", use_container_width=True):
+            _complete_onboarding(user)
+
+
+def _complete_onboarding(user: User):
+    answers = st.session_state.onboarding_answers
+    focus_areas = answers.get("focus_areas") or ["Health and energy", "Productivity"]
+    selected_starters = set(answers.get("selected_starters", []))
+
+    apply_onboarding_profile(user, answers)
+    for area in focus_areas:
+        for name, habit_type, emoji in STARTER_HABITS.get(area, []):
+            if name in selected_starters:
+                _, error = add_habit(st.session_state.habits, name, habit_type, emoji)
+                if error is None:
+                    user.habits_created += 1
+
+    user.add_xp(25)
+    user.update_parameters(st.session_state.habits)
+    save_data()
+    save_user_data()
+    del st.session_state.onboarding_step
+    del st.session_state.onboarding_answers
+    st.success("Setup complete. Your dashboard is ready.")
+    st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -214,7 +488,7 @@ def page_today(habits, user: User):
     # ── User Status Bar ──
     render_user_status_bar(user)
     
-    st.markdown("# Your Progress")
+    st.markdown(f"# {t('dashboard.title')}")
     
     # ── Quick Stats ──
     render_stats_cards(habits)
@@ -222,13 +496,14 @@ def page_today(habits, user: User):
     # ── XP & Level Progress ──
     render_xp_progress(user)
     
-    # ── User Parameters ──
-    render_user_parameters(user)
-    
-    # ── Monthly Activity Calendar ──
-    glass_card_start("Monthly Activity", "See your consistency at a glance")
-    render_global_calendar(habits)
-    glass_card_end()
+    # ── Character Stats + Monthly Activity ──
+    stats_col, calendar_col = st.columns([4, 6])
+    with stats_col:
+        render_user_parameters(user)
+    with calendar_col:
+        glass_card_start(t("dashboard.monthly_activity_title"), t("dashboard.monthly_activity_subtitle"))
+        render_global_calendar(habits)
+        glass_card_end()
     
     # ── Motivation Message ──
     if habits:
@@ -251,68 +526,67 @@ def page_today(habits, user: User):
         ''', unsafe_allow_html=True)
     
     # ── Today's Tasks List ──
-    st.markdown("### Today's Tasks")
+    st.markdown(f"### {t('dashboard.today_tasks')}")
     
     if not habits:
         render_empty_state(
-            message="No habits yet! Go to 'My Habits' to create your first habit and start your journey.",
+            message=t("dashboard.no_habits"),
             icon="🌟"
         )
-    else:
-        for h in habits:
-            completed = h.is_completed_today()
-            streak = h.get_current_streak()
-            
-            col1, col2, col3 = st.columns([6, 2, 2])
-            
-            with col1:
-                status_icon = "✅" if completed else "⬜"
-                st.markdown(f"**{status_icon} {h.emoji} {h.name}**")
-                if streak > 0:
-                    st.caption(f"🔥 {streak} day streak")
-            
-            with col2:
-                if not completed:
-                    if st.button("Check in", key=f"check_{h.name}", 
-                                use_container_width=True, type="primary"):
-                        h.mark_complete()
-                        # Award XP
-                        xp_earned = XP_HABIT_COMPLETION
-                        if streak > 0:
-                            xp_earned += XP_STREAK_BONUS
-                        user.add_xp(xp_earned)
-                        user.total_completions += 1
-                        user.update_parameters(habits)
-                        
-                        # Check achievements
-                        new_achievements = check_achievements(user, habits)
-                        
-                        save_data()
-                        save_user_data()
-                        
-                        # Show celebration
-                        celebration_effect(f"{h.name} (+{xp_earned} XP)")
-                        
-                        if new_achievements:
-                            for ach_id in new_achievements:
-                                ach = ACHIEVEMENTS[ach_id]
-                                st.toast(f"🏆 Achievement Unlocked: {ach['icon']} {ach['name']}!")
-                        
-                        st.rerun()
-                else:
-                    st.markdown(
-                        '<div style="color: var(--success); font-weight: 600; padding: 8px 0;">✓ Done</div>',
-                        unsafe_allow_html=True
-                    )
-            
-            with col3:
-                if st.button("Details", key=f"detail_{h.name}", 
-                            use_container_width=True):
-                    st.session_state.selected_habit = h.name
-                    st.session_state.active_page = "Habit Detail"
+    habits_sorted = list(habits)
+    for idx, h in enumerate(habits_sorted):
+        key = f"{idx}_{h.name}"
+        completed = h.is_completed_today()
+        streak = h.get_current_streak()
+        
+        col1, col2, col3 = st.columns([6, 2, 2])
+        
+        with col1:
+            status_icon = "✅" if completed else "⬜"
+            st.markdown(f"**{status_icon} {h.emoji} {h.name}**")
+            if streak > 0:
+                st.caption(f"🔥 {streak} {t('dashboard.streak', days=streak)}")
+        
+        with col2:
+            if not completed:
+                if st.button(t("dashboard.checkin_button"), key=f"check_{key}", use_container_width=True, type="primary"):
+                    h.mark_complete()
+                    # Award XP
+                    xp_earned = XP_HABIT_COMPLETION
+                    if streak > 0:
+                        xp_earned += XP_STREAK_BONUS
+                    user.add_xp(xp_earned)
+                    user.total_completions += 1
+                    user.update_parameters(habits_sorted)
+                    
+                    # Check achievements
+                    new_achievements = check_achievements(user, habits_sorted)
+                    
+                    save_data()
+                    save_user_data()
+                    
+                    # Show celebration
+                    celebration_effect(f"{h.name} (+{xp_earned} XP)")
+                    
+                    if new_achievements:
+                        for ach_id in new_achievements:
+                            ach = ACHIEVEMENTS[ach_id]
+                            st.toast(f"🏆 Achievement Unlocked: {ach['icon']} {ach['name']}!")
+                    
                     st.rerun()
-            
-            st.divider()
+            else:
+                st.markdown(
+                    '<div style="color: var(--success); font-weight: 600; padding: 8px 0;">✓ Done</div>',
+                    unsafe_allow_html=True
+                )
+        
+        with col3:
+            if st.button(t("dashboard.details_button"), key=f"detail_{key}", use_container_width=True):
+                st.session_state.selected_habit = h.name
+                st.session_state.active_page = "Habit Detail"
+                st.rerun()
+        
+        st.divider()
 
 
 def render_user_status_bar(user: User):
@@ -380,39 +654,51 @@ def render_xp_progress(user: User):
 
 
 def render_user_parameters(user: User):
-    """Render user parameter stats as a game dashboard."""
-    glass_card_start("📊 Character Stats", "Your habit-building attributes")
+    """Render user parameter stats as a hexagonal radar chart."""
+    glass_card_start("Character Stats", user.personality_type)
     
     params = [
-        ("💪 Discipline", user.discipline, "How consistent you are with daily habits"),
-        ("🔄 Consistency", user.consistency, "Your streak maintenance ability"),
-        ("🎯 Dedication", user.dedication, "Total effort and time invested"),
-        ("🧠 Focus", user.focus, "Completion rate across all habits"),
+        ("Discipline", user.discipline),
+        ("Consistency", user.consistency),
+        ("Dedication", user.dedication),
+        ("Focus", user.focus),
+        ("Creativity", user.creativity),
+        ("Resilience", user.resilience),
     ]
-    
-    for name, value, desc in params:
+
+    if st_echarts:
+        options = {
+            "radar": {
+                "indicator": [{"name": name, "max": 100} for name, _ in params],
+                "shape": "polygon",
+                "splitNumber": 4,
+                "axisName": {"color": "#ffffff"},
+                "splitLine": {"lineStyle": {"color": "rgba(0,255,255,0.22)"}},
+                "splitArea": {"areaStyle": {"color": ["rgba(0,255,255,0.03)", "rgba(255,0,255,0.03)"]}},
+                "axisLine": {"lineStyle": {"color": "rgba(0,255,255,0.35)"}},
+            },
+            "series": [{
+                "type": "radar",
+                "data": [{
+                    "value": [value for _, value in params],
+                    "name": "Traits",
+                    "areaStyle": {"color": "rgba(255,0,255,0.22)"},
+                    "lineStyle": {"color": "#ff00ff", "width": 2},
+                    "itemStyle": {"color": "#00ffff"},
+                }],
+            }],
+        }
+        st_echarts(options=options, height="320px")
+    else:
+        st.warning("Install streamlit-echarts to see the hex chart.")
+
+    for name, value in params:
         color = "#10B981" if value >= 70 else "#F5A623" if value >= 40 else "#EF4444"
         st.markdown(f'''
-        <div style="margin-bottom: 16px;">
+        <div style="margin-bottom: 10px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <span style="font-size: 14px; font-weight: 600; color: var(--text);">{name}</span>
                 <span style="font-size: 14px; font-weight: 700; color: {color};">{value}</span>
-            </div>
-            <div style="font-size: 11px; color: var(--text3); margin-bottom: 6px;">{desc}</div>
-            <div style="
-                width: 100%;
-                height: 6px;
-                background: rgba(128, 128, 128, 0.15);
-                border-radius: var(--radius-full);
-                overflow: hidden;
-            ">
-                <div style="
-                    width: {value}%;
-                    height: 100%;
-                    background: {color};
-                    border-radius: var(--radius-full);
-                    transition: width 0.5s ease;
-                "></div>
             </div>
         </div>
         ''', unsafe_allow_html=True)
@@ -426,30 +712,30 @@ def render_user_parameters(user: User):
 
 def page_manage(habits, user: User):
     """Habit management page."""
-    st.markdown("# Habit Lab")
-    st.caption("Create and manage your habits")
+    st.markdown(f"# {t('habits.title')}")
+    st.caption(t("habits.subtitle"))
     
     # ── Create New Habit Form ──
-    with st.expander("✨ Create New Habit", expanded=True):
+    with st.expander(t("habits.create_expander"), expanded=True):
         c1, c2, c3 = st.columns([4, 2, 2])
         
         with c1:
-            name = st.text_input("What habit do you want to build?", 
-                                placeholder="e.g., Morning Meditation")
+            name = st.text_input(t("habits.name_label"), 
+                                placeholder=t("habits.name_placeholder"))
         
         with c2:
-            habit_type = st.selectbox("Type", ["adopt", "quit"], 
-                                     help="Adopt = start doing, Quit = stop doing")
+            habit_type = st.selectbox(t("habits.type_label"), ["adopt", "quit"], 
+                                     help=t("habits.type_help"))
         
         with c3:
-            emoji = st.selectbox("Icon", [
+            emoji = st.selectbox(t("habits.icon_label"), [
                 "🏃", "📚", "🧘", "💪", "🚭", "📵", 
                 "💧", "😴", "🎯", "✍️", "🎨", "🌱"
             ])
         
-        if st.button("Create Habit", type="primary", use_container_width=True):
+        if st.button(t("habits.create_button"), type="primary", use_container_width=True):
             if not name or not name.strip():
-                st.error("Please enter a habit name.")
+                st.error(t("habits.name_required"))
             else:
                 result, error = add_habit(habits, name.strip(), habit_type, emoji)
                 if error:
@@ -458,18 +744,18 @@ def page_manage(habits, user: User):
                     user.habits_created += 1
                     user.add_xp(25)  # Bonus XP for creating a habit
                     check_achievements(user, habits)
-                    st.success(f"🎉 Habit '{name}' created! (+25 XP)")
+                    st.success(f"🎉 {t('habits.created_success', name=name.strip())}")
                     save_data()
                     save_user_data()
                     st.rerun()
     
     # ── Active Habits List ──
-    st.markdown("### Active Habits")
+    st.markdown(f"### {t('habits.active_title')}")
     
     if not habits:
-        st.info("No habits yet. Create your first one above!")
+        st.info(t("habits.none_yet"))
     else:
-        for h in habits:
+        for idx, h in enumerate(habits):
             rank = h.get_rank()
             streak = h.get_current_streak()
             
@@ -477,12 +763,14 @@ def page_manage(habits, user: User):
             
             with c1:
                 st.markdown(f"**{h.emoji} {h.name}**")
-                st.caption(f"{rank_badge(rank, text_only=True)} • {streak} day streak")
+                streak_label = f"{streak} {t('dashboard.streak', days=streak)}"
+                st.caption(f"{rank_badge(rank, text_only=True)} • {streak_label}")
             
             with c2:
-                if st.button("Remove", key=f"del_{h.name}", type="secondary"):
+                if st.button(t("habits.remove_button"), key=f"del_{idx}_{h.name}", type="secondary"):
                     delete_habit(habits, h.name)
-                    st.success(f"Removed '{h.name}'")
+                    db_delete_habit(user.username, h.name)
+                    st.success(t("habits.removed_success", name=h.name))
                     save_data()
                     st.rerun()
             
@@ -548,18 +836,18 @@ def page_detail(habits, name):
 
 def page_events(user: User):
     """Events/Challenges page."""
-    st.markdown("# 🎯 Challenges & Events")
-    st.caption("Join community challenges to level up faster!")
-    
+    st.markdown(f"# {t('events.title')}")
+    st.caption(t('events.subtitle'))
+
     events = load_events()
-    
+
     # ── Active Events ──
-    st.markdown("### Active Challenges")
-    
+    st.markdown(f"### {t('events.active_title')}")
+
     active_events = [e for e in events if e.is_active]
-    
+
     if not active_events:
-        st.info("No active events at the moment. Check back soon!")
+        st.info(t('events.none_active'))
     else:
         for event in active_events:
             is_joined = event.id in user.joined_events
@@ -569,20 +857,20 @@ def page_events(user: User):
             
             st.markdown(f"**{event.description}**")
             st.caption(f"📅 {event.start_date} to {event.end_date}")
-            st.caption(f"🏆 Reward: {event.xp_reward} XP")
-            st.caption(f"📝 Suggested habit: {event.habit_suggestion}")
+            st.caption(f"🏆 {t('events.reward', xp=event.xp_reward)}")
+            st.caption(f"📝 {t('events.suggested', habit=event.habit_suggestion)}")
             
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 if is_completed:
-                    st.success("✅ Completed! Reward claimed!")
+                    st.success(t('events.completed_reward'))
                 elif is_joined:
-                    st.info("🔄 In Progress - Keep going!")
+                    st.info(t('events.in_progress'))
             
             with col2:
                 if not is_joined and not is_completed:
-                    if st.button("Join Challenge", key=f"join_{event.id}", 
+                    if st.button(t('events.join_button'), key=f"join_{event.id}", 
                                 type="primary", use_container_width=True):
                         user.joined_events.append(event.id)
                         user.events_joined += 1
@@ -590,16 +878,18 @@ def page_events(user: User):
                         check_achievements(user)
                         update_user(user)
                         save_events(events)
-                        st.success(f"Joined! +25 XP")
+                        st.success(t('events.joined_success'))
                         st.rerun()
             
             glass_card_end()
     
     # ── Completed Events ──
     if user.completed_events:
-        st.markdown("### Completed Challenges")
+        st.markdown(f"### {t('events.completed_title')}")
         for event in events:
             if event.id in user.completed_events:
+                st.markdown(f"✅ **{event.name}** - {event.xp_reward} XP earned")
+
                 st.markdown(f"✅ **{event.name}** - {event.xp_reward} XP earned")
 
 
@@ -609,8 +899,8 @@ def page_events(user: User):
 
 def page_rankings(user: User):
     """Global rankings/leaderboard page."""
-    st.markdown("# 🏆 Global Rankings")
-    st.caption("See where you stand among habit builders!")
+    st.markdown(f"# 🏆 {t('rankings.title')}")
+    st.caption(t('rankings.subtitle'))
     
     # ── User's Rank ──
     user_position = get_user_rank_position(user.username)
@@ -700,19 +990,19 @@ def page_rankings(user: User):
 
 def page_achievements(user: User):
     """Achievements page."""
-    st.markdown("# 🏆 Achievements")
-    st.caption("Badges you've earned on your journey")
+    st.markdown(f"# {t('achievements.title')}")
+    st.caption(t('achievements.subtitle'))
     
     # Check for new achievements
     new_achievements = check_achievements(user, st.session_state.habits)
     if new_achievements:
         for ach_id in new_achievements:
             ach = ACHIEVEMENTS[ach_id]
-            st.success(f"🎉 New Achievement: {ach['icon']} {ach['name']}!")
+            st.success(t('achievements.new', icon=ach['icon'], name=ach['name']))
         save_user_data()
     
     # ── Earned Achievements ──
-    st.markdown("### Earned")
+    st.markdown(f"### {t('achievements.earned_title')}")
     
     earned_count = 0
     for ach_id, ach in ACHIEVEMENTS.items():
@@ -753,6 +1043,96 @@ def page_achievements(user: User):
     st.caption(f"Progress: {earned_count}/{len(ACHIEVEMENTS)} achievements earned")
 
 
+def render_profile_page(user: User, habits: list):
+    """Unified Profile & Settings page with account + app controls."""
+    st.markdown("## " + t("nav.profile"))
+
+    if not user:
+        st.info(t("profile.login_to_edit"))
+        return
+
+    left_col, right_col = st.columns([1, 1])
+
+    with left_col:
+        # ── ACCOUNT INFO ──
+        st.markdown("### " + t("profile.account_title"))
+        with st.form("account_form", clear_on_submit=False):
+            current_username = st.text_input(t("profile.username"), value=user.username)
+            new_password = st.text_input(t("profile.new_password"), type="password", placeholder="Leave blank to keep current")
+            confirm_password = st.text_input(t("profile.confirm_password"), type="password")
+            submitted = st.form_submit_button(t("profile.save"))
+            if submitted:
+                if not current_username or not current_username.strip():
+                    st.error(t("profile.username_empty"))
+                elif new_password:
+                    if new_password != confirm_password:
+                        st.error(t("profile.passwords_do_not_match"))
+                    elif len(new_password) < 4:
+                        st.error(t("profile.password_too_short"))
+                    else:
+                        existing = get_user_by_username(current_username)
+                        if existing and existing.username.lower() != user.username.lower():
+                            st.error(t("profile.username_taken"))
+                        else:
+                            user.username = current_username.strip().lower()
+                            user.password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                            save_user_data()
+                            st.success(t("profile.saved"))
+                else:
+                    if current_username.strip().lower() != user.username:
+                        existing = get_user_by_username(current_username)
+                        if existing and existing.username.lower() != user.username.lower():
+                            st.error(t("profile.username_taken"))
+                        else:
+                            user.username = current_username.strip().lower()
+                            update_user(user)
+                            save_user_data()
+                            st.success(t("profile.saved"))
+
+        # ── PET / COMPANION ──
+        with st.form("pet_form", clear_on_submit=False):
+            pet_name = st.text_input(t("profile.companion_name"), value=user.pet_name or t("profile.companion_default"))
+            mood = st.selectbox(
+                t("profile.companion_mood"),
+                [t("profile.mood_curious"), t("profile.mood_energized"), t("profile.mood_sleepy"), t("profile.mood_loyal")],
+                index=0,
+            )
+            if st.form_submit_button(t("profile.save_companion")):
+                user.pet_name = pet_name.strip() or t("profile.companion_default")
+                user.pet_mood = mood
+                save_user_data()
+                st.success(t("profile.companion_updated"))
+
+    with right_col:
+        # ── APPEARANCE ──
+        st.markdown("### " + t("profile.appearance_title"))
+        theme = st.session_state.get("theme", "Dark")
+        theme = st.radio("Theme", ["Dark", "Light", "Retro"], index=["Dark", "Light", "Retro"].index(theme))
+        st.session_state.theme = theme
+
+        from src.i18n import SUPPORTED_LANGUAGES, LANGUAGE_OPTIONS, set_active_language
+        current_lang = st.session_state.get("app_language", "en")
+        lang_options = [f"{code}: {LANGUAGE_OPTIONS.get(code, code)}" for code in SUPPORTED_LANGUAGES]
+        current_index = SUPPORTED_LANGUAGES.index(current_lang) if current_lang in SUPPORTED_LANGUAGES else 0
+        new_lang_value = st.selectbox(
+            "Language",
+            options=SUPPORTED_LANGUAGES,
+            format_func=lambda code: LANGUAGE_OPTIONS.get(code, code),
+            index=current_index,
+        )
+        if new_lang_value != current_lang:
+            set_active_language(new_lang_value)
+            st.rerun()
+
+        # ─- ACTIONS ──
+        st.markdown("### Account")
+        if st.button("Logout", type="secondary"):
+            for key in ["current_user", "habits", "active_page", "selected_habit", "oauth_checked", "onboarding_step", "onboarding_answers"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -761,6 +1141,7 @@ def main():
     """Main application entry point."""
     init_app()
     apply_design()
+    handle_google_oauth_callback()
     
     # Check if user is logged in
     if st.session_state.current_user is None:
@@ -770,10 +1151,14 @@ def main():
     user = st.session_state.current_user
     habits = st.session_state.habits
     active = st.session_state.active_page
+
+    if not user.onboarding_completed:
+        page_onboarding(user)
+        return
     
     # ── Render Navigation ──
     render_top_nav(habits, active, st.session_state.theme)
-    render_ai_companion(user.to_dict())
+    render_pet_companion(user.to_dict(), habits)
     
     # ── Route to Page ──
     _, stage, _ = st.columns([1, 10, 1])
@@ -790,41 +1175,10 @@ def main():
             page_rankings(user)
         elif active == "Achievements":
             page_achievements(user)
-        elif active == "AI Coach":
-            page_ai_coach(user)
+        elif active == "Profile":
+            render_profile_page(user, habits)
         else:
             st.error("Page not found.")
-
-
-def page_ai_coach(user: User):
-    """AI Coach page for recommendations and motivation."""
-    st.markdown(f"# 🤖 {translate('ai_coach')}")
-    st.caption("Personalized missions from your Cyber-Buddy")
-    
-    glass_card_start("✨ Habit Discovery Survey", "Answer these to get personalized missions")
-    
-    with st.form("ai_survey"):
-        q1 = st.text_area("What are your primary goals for the next 30 days?", placeholder="e.g., Learn Python, lose weight, read more...")
-        q2 = st.selectbox("How much time can you dedicate daily?", ["< 15 mins", "15-30 mins", "30-60 mins", "1 hour+"])
-        q3 = st.multiselect("What areas do you want to improve?", ["Health", "Productivity", "Mindfulness", "Learning", "Social"])
-        
-        submitted = st.form_submit_button("Generate Missions", type="primary")
-        if submitted:
-            user_answers = {"goals": q1, "time": q2, "areas": q3}
-            with st.spinner("Cyber-Buddy is calculating your path..."):
-                recommendations = get_habit_recommendations(user_answers)
-                st.session_state.ai_recommendations = recommendations
-            st.rerun()
-    
-    glass_card_end()
-    
-    if "ai_recommendations" in st.session_state:
-        glass_card_start("⚡ Your Cyber-Missions", "Based on your bio-readings")
-        st.markdown(st.session_state.ai_recommendations)
-        if st.button("Clear Recommendations"):
-            del st.session_state.ai_recommendations
-            st.rerun()
-        glass_card_end()
 
 if __name__ == "__main__":
     main()
