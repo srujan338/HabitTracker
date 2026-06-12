@@ -1,16 +1,8 @@
-/* 
-   =============================================================================
+/*
    HABIT SPACE - CYBERPUNK NEON UI SYSTEM
-   =============================================================================
-   Transforming the Habit Tracker into a high-stakes, addictive mission.
-   - High contrast dark mode with neon accents
-   - Glitch effects and futuristic typography
-   - Data-heavy visualizations
-   =============================================================================
 */
 
 :root {
-    /* Cyberpunk Palette */
     --neon-pink: #FF00FF;
     --neon-blue: #00FFFF;
     --neon-green: #39FF14;
@@ -18,57 +10,54 @@
     --dark-bg: #050505;
     --card-bg: rgba(10, 10, 10, 0.95);
     --cyber-border: 1px solid var(--neon-blue);
-    
-    /* Spacing */
+
     --space-xs: 4px;
     --space-sm: 8px;
     --space-md: 16px;
     --space-lg: 24px;
     --space-xl: 32px;
-    
-    /* Typography */
+
     --font-cyber: 'Space Grotesk', sans-serif;
-    
-    /* Shadows & Glows */
+
     --glow-pink: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink);
     --glow-blue: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue);
     --glow-green: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+
+    --text: #e2e8f0;
+    --text2: #cbd5e1;
+    --success: #10b981;
+    --border: rgba(255, 255, 255, 0.1);
+    --border2: rgba(0, 255, 255, 0.25);
+    --glass: rgba(6, 10, 18, 0.78);
+    --glass-heavy: rgba(2, 6, 14, 0.92);
+    --radius-sm: 12px;
+    --radius-md: 16px;
+    --radius-lg: 20px;
+    --radius-xl: 24px;
+    --radius-full: 999px;
 }
 
-/* ── GLOBAL STYLES ───────────────────────────────────────────────────────── */
 .stApp {
     background-color: var(--dark-bg) !important;
-    background-image: 
+    background-image:
         radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
         linear-gradient(rgba(0, 255, 255, 0.02) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 255, 255, 0.02) 1px, transparent 1px) !important;
     background-size: 100% 100%, 40px 40px, 40px 40px !important;
     color: #FFF !important;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Space Grotesk', sans-serif;
 }
 
-/* ── CYBER CARDS ─────────────────────────────────────────────────────────── */
 .glass-card {
-    background: var(--card-bg) !important;
+    background: var(--glass) !important;
     border: 1px solid rgba(0, 255, 255, 0.2) !important;
     border-left: 4px solid var(--neon-blue) !important;
-    border-radius: 0px !important; /* Square for cyber look */
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.1) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.08) !important;
     position: relative;
     overflow: visible !important;
 }
 
-.glass-card::after {
-    content: '';
-    position: absolute;
-    bottom: -5px;
-    right: -5px;
-    width: 20px;
-    height: 20px;
-    background: var(--neon-blue);
-    clip-path: polygon(100% 0, 100% 100%, 0 100%);
-}
-
-/* ── NEON BUTTONS ────────────────────────────────────────────────────────── */
 .stButton > button {
     border-radius: 0px !important;
     background: transparent !important;
@@ -79,58 +68,185 @@
     font-weight: 700 !important;
     transition: all 0.3s ease !important;
 }
-
 .stButton > button:hover {
     background: var(--neon-blue) !important;
     color: #000 !important;
     box-shadow: var(--glow-blue) !important;
 }
 
-.stButton > button[kind="primary"] {
-    border-color: var(--neon-pink) !important;
-    color: var(--neon-pink) !important;
-}
-
-.stButton > button[kind="primary"]:hover {
-    background: var(--neon-pink) !important;
-    color: #000 !important;
-    box-shadow: var(--glow-pink) !important;
-}
-
-/* ── PROGRESS BARS ───────────────────────────────────────────────────────── */
-.progress-bar-fill {
-    background: var(--neon-blue) !important;
-    box-shadow: var(--glow-blue);
-}
-
-/* ── HABIT CARDS ─────────────────────────────────────────────────────────── */
 .habit-card {
     border-radius: 0px !important;
     background: rgba(255, 255, 255, 0.03) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
-
 .habit-card.completed {
     border-color: var(--neon-green) !important;
     box-shadow: inset 0 0 10px rgba(57, 255, 20, 0.2) !important;
 }
 
-/* ── TYPOGRAPHY ──────────────────────────────────────────────────────────── */
-h1, h2, h3 {
-    font-family: var(--font-cyber) !important;
-    text-transform: uppercase;
-    letter-spacing: 2px;
+/* ── ROAMING / ARCANE COMPANION ─────────────────────────────────────── */
+
+.roaming-pet {
+    display: none;
 }
 
-/* ── CHAT SIDEBAR ────────────────────────────────────────────────────────── */
-.chat-container {
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid var(--neon-blue);
-    padding: 10px;
-    height: 300px;
-    overflow-y: auto;
-    margin-bottom: 10px;
+.arcane-pet {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    width: 230px;
+    z-index: 900;
+    filter: drop-shadow(0 14px 26px rgba(124, 58, 237, 0.35));
+    animation: arcaneFloat 6s ease-in-out infinite;
 }
 
-.chat-msg-user { color: var(--neon-blue); margin-bottom: 5px; }
-.chat-msg-ai { color: var(--neon-pink); margin-bottom: 5px; }
+.arcane-pet:hover {
+    transform: translateY(-4px);
+}
+
+.arcane-pet-aura {
+    position: absolute;
+    inset: -20px;
+    border-radius: 999px;
+    background: radial-gradient(circle at center, rgba(14, 165, 233, 0.35), transparent 70%);
+    animation: arcanePulse 2.2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.arcane-pet-body {
+    position: relative;
+    height: 112px;
+    background: linear-gradient(135deg, var(--neon-pink), #4f46e5);
+    border: 1px solid rgba(192, 132, 252, 0.5);
+    border-radius: 136px 136px 80px 80px;
+    overflow: hidden;
+}
+.arcane-pet-body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 45%);
+}
+
+.arcane-pet-eye {
+    position: absolute;
+    top: 32px;
+    width: 18px;
+    height: 22px;
+    background: #f8fafc;
+    border-radius: 999px;
+    box-shadow: 0 0 14px rgba(14, 165, 233, 0.8);
+}
+.arcane-pet-eye.left { left: 54px; }
+.arcane-pet-eye.right { right: 54px; }
+.arcane-pet-eye::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    width: 9px;
+    height: 9px;
+    background: var(--neon-blue);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--neon-yellow);
+}
+
+.arcane-pet-rune {
+    position: absolute;
+    left: 50%;
+    top: 72px;
+    transform: translateX(-50%) rotate(12deg);
+    width: 34px;
+    height: 34px;
+    border: 2px solid rgba(255, 255, 0, 0.7);
+    border-radius: 999px;
+    box-shadow: inset 0 0 10px rgba(255, 255, 0, 0.35), 0 0 14px rgba(255, 255, 0, 0.35);
+}
+.arcane-pet-rune::before,
+.arcane-pet-rune::after {
+    content: "";
+    position: absolute;
+    background: rgba(255, 255, 0, 0.9);
+}
+.arcane-pet-rune::before {
+    inset: 8px 10px;
+    border-radius: 999px;
+    opacity: 0.9;
+}
+.arcane-pet-rune::after {
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 22px;
+}
+
+.arcane-pet-bubble {
+    position: absolute;
+    right: 100%;
+    top: 10px;
+    width: 210px;
+    padding: 14px 16px;
+    margin-right: 14px;
+    border-radius: 18px 18px 4px 18px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(192, 132, 252, 0.4);
+    color: #e2e8f0;
+    font-size: 13px;
+    line-height: 1.45;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.55);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+.arcane-pet:hover .arcane-pet-bubble {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.arcane-pet-shadow {
+    margin-top: 10px;
+    height: 14px;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.35), transparent 70%);
+    border-radius: 999px;
+    animation: arcaneShadow 6s ease-in-out infinite;
+}
+
+.arcane-pet-meta {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text2);
+    text-align: center;
+}
+
+@keyframes arcaneFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+}
+@keyframes arcanePulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.06); }
+}
+@keyframes arcaneShadow {
+    0%, 100% { transform: scaleX(1); opacity: 0.8; }
+    50% { transform: scaleX(0.8); opacity: 0.5; }
+}
+
+@media (max-width: 700px) {
+    .arcane-pet {
+        width: 150px;
+        bottom: 18px;
+        right: 12px;
+    }
+    .arcane-pet-body {
+        height: 72px;
+    }
+    .arcane-pet-bubble {
+        right: auto;
+        left: 72px;
+        width: 170px;
+    }
+}

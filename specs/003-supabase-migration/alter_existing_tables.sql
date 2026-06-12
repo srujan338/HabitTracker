@@ -1,0 +1,44 @@
+-- Run this in Supabase SQL Editor if your tables already exist.
+-- It adds the profile/onboarding columns used by the current app.
+
+ALTER TABLE public.users
+ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT '',
+ADD COLUMN IF NOT EXISTS google_id TEXT,
+ADD COLUMN IF NOT EXISTS email TEXT,
+ADD COLUMN IF NOT EXISTS title TEXT DEFAULT 'Beginner',
+ADD COLUMN IF NOT EXISTS discipline INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS consistency INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS dedication INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS focus INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS creativity INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS resilience INTEGER DEFAULT 50,
+ADD COLUMN IF NOT EXISTS total_streak_days INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS total_completions INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS habits_created INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS events_joined INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS events_completed INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS personality_type TEXT DEFAULT 'Balanced Builder',
+ADD COLUMN IF NOT EXISTS preferred_tone TEXT DEFAULT 'Friendly and direct',
+ADD COLUMN IF NOT EXISTS pet_name TEXT DEFAULT 'Buddy',
+ADD COLUMN IF NOT EXISTS pet_mood TEXT DEFAULT 'curious',
+ADD COLUMN IF NOT EXISTS achievements JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS joined_events JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS completed_events JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS last_active DATE DEFAULT CURRENT_DATE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_google_id_unique
+ON public.users (google_id)
+WHERE google_id IS NOT NULL;
+
+ALTER TABLE public.habits
+ADD COLUMN IF NOT EXISTS user_id TEXT,
+ADD COLUMN IF NOT EXISTS habit_type TEXT DEFAULT 'adopt',
+ADD COLUMN IF NOT EXISTS emoji TEXT DEFAULT '✅',
+ADD COLUMN IF NOT EXISTS completions JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS created_at DATE DEFAULT CURRENT_DATE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS habits_user_name_unique
+ON public.habits (user_id, name);
+
+NOTIFY pgrst, 'reload schema';
