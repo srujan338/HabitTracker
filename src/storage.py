@@ -1,75 +1,52 @@
 """
 =============================================================================
-STORAGE MODULE - Data Persistence Layer
+STORAGE MODULE - Local JSON Persistence Layer
 =============================================================================
-This module handles all data persistence operations, now using MongoDB Atlas.
-
-Responsibilities:
-- Loading habit data from MongoDB
-- Saving habit data to MongoDB
-- Handling database errors gracefully
-
-Data Structure:
-Habits are stored in the 'habits' collection.
-Each habit document:
-{
-    "_id": ObjectId(...),
-    "username": "srujan",
-    "name": "Morning Meditation",
-    "habit_type": "adopt",
-    "emoji": "🧘",
-    "completions": ["2024-01-15", "2024-01-16"],
-    "created_at": "2024-01-15"
-}
+This module handles local JSON file storage for habit data.
 =============================================================================
 """
 
-from typing import List, Optional
-from src.database import get_collection
-from bson import ObjectId
+import json
+import os
+from typing import List
 
-# Collection names
-HABITS_COLLECTION = "habits"
+DATA_FILE = "data/habits.json"
 
 def load_habits(username: str) -> List[dict]:
-    """
-    Load habits for a specific user from MongoDB.
-    
-    Args:
-        username: The username of the user to load habits for.
-        
-    Returns:
-        List of habit dictionaries.
-    """
-    collection = get_collection(HABITS_COLLECTION)
-    habits = list(collection.find({"username": username}))
-    
-    # Convert MongoDB _id to string for compatibility
-    for habit in habits:
-        habit["_id"] = str(habit["_id"])
-    
-    return habits
+    """Load habits for a user from a local JSON file."""
+    # Simple JSON implementation for local storage
+    if not os.path.exists(DATA_FILE):
+        return []
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            all_data = json.load(f)
+            # Filter by username
+            return [h for h in all_data if h.get("username") == username]
+    except Exception:
+        return []
 
 def save_habits(username: str, habits_data: List[dict]) -> None:
-    """
-    Save habit data to MongoDB, replacing the user's current habits.
+    """Save habits for a user to a local JSON file."""
+    os.makedirs("data", exist_ok=True)
     
-    Args:
-        username: The username to save habits for.
-        habits_data: List of habit dictionaries to save.
-    """
-    collection = get_collection(HABITS_COLLECTION)
+    # Load all, remove user's old habits, add new ones, save all
+    all_data = []
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                all_data = json.load(f)
+        except:
+            all_data = []
+            
+    # Filter out old habits for this user
+    all_data = [h for h in all_data if h.get("username") != username]
     
-    # For simplicity in this implementation, we delete existing habits for user
-    # and re-insert the updated list.
-    collection.delete_many({"username": username})
-    
-    if habits_data:
-        # Add username to each habit document
-        for habit in habits_data:
-            habit["username"] = username
-            # Remove _id if present, as it will be re-generated
-            if "_id" in habit:
-                del habit["_id"]
+    # Add new habits
+    for habit in habits_data:
+        habit["username"] = username
+        if "_id" in habit:
+            del habit["_id"]
+        all_data.append(habit)
         
-        collection.insert_many(habits_data)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(all_data, f, indent=2, ensure_ascii=False)

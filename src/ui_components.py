@@ -19,7 +19,7 @@ Components included:
 
 import streamlit as st
 from datetime import date
-from src.i18n import translate, set_language
+from src.i18n import t, render_language_selector, set_active_language, DEFAULT_LANGUAGE
 
 
 def get_streak_flame_emoji(streak: int) -> str:
@@ -404,8 +404,16 @@ def render_top_nav(habits: list, active_page: str, theme: str):
 
     # ── COLUMN 2: NAVIGATION BUTTONS ──
     with c2:
-        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements", "AI Coach"]
-        icons = ["🏠", "📋", "🎯", "🏆", "🎖️", "🤖"]
+        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements", "Profile"]
+        page_keys = {
+            "Today": "nav.home",
+            "My Habits": "nav.habits",
+            "Events": "nav.events",
+            "Rankings": "nav.rankings",
+            "Achievements": "nav.achievements",
+            "Profile": "nav.profile"
+        }
+        icons = ["🏠", "📋", "🎯", "🏆", "🎖️", "👤"]
         nav_cols = st.columns(len(pages))
         
         for i, (p, icon) in enumerate(zip(pages, icons)):
@@ -413,7 +421,7 @@ def render_top_nav(habits: list, active_page: str, theme: str):
             is_active = (active_page == p) or (p == "Today" and active_page == "Habit Detail")
             
             # Translate label
-            translated_label = translate(p.lower().replace(" ", "_"))
+            translated_label = t(page_keys[p])
             
             # Style active button differently
             label = f"{icon} **{translated_label}**" if is_active else f"{icon} {translated_label}"
@@ -425,21 +433,7 @@ def render_top_nav(habits: list, active_page: str, theme: str):
 
     # ── COLUMN L: LANGUAGE SELECTOR ──
     with cl:
-        current_lang = st.session_state.get("language", "en")
-        lang_options = {"en": "🇺🇸 English", "hi": "🇮🇳 हिन्दी"}
-        
-        selected_lang = st.selectbox(
-            "Language",
-            options=list(lang_options.keys()),
-            format_func=lambda x: lang_options[x],
-            index=list(lang_options.keys()).index(current_lang),
-            key="lang_selector",
-            label_visibility="collapsed"
-        )
-        
-        if selected_lang != current_lang:
-            set_language(selected_lang)
-            st.rerun()
+        render_language_selector()
 
     # ── COLUMN 3: THEME TOGGLE ──
     with c3:
@@ -454,7 +448,7 @@ def render_top_nav(habits: list, active_page: str, theme: str):
         theme_label = themes[next_idx]
         
         if st.button(f"{theme_icon}", key="theme_toggle", 
-                     help=f"{translate('switch_to')} {theme_label} {translate('theme')}"):
+                     help=f"Switch to {theme_label} theme"):
             st.session_state.theme = themes[next_idx]
             st.rerun()
     
@@ -567,31 +561,36 @@ def render_loading_spinner(text: str = "Loading..."):
     ''', unsafe_allow_html=True)
 
 
-def render_ai_companion(user_data: dict):
-    """Renders the AI Companion sidebar chat."""
-    from src.ai import get_companion_chat
-    st.sidebar.markdown("### 🤖 CYBER-BUDDY")
-    
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    
-    # Display chat history
-    chat_html = '<div class="chat-container">'
-    for msg in st.session_state.chat_history:
-        role_class = "chat-msg-user" if msg["role"] == "user" else "chat-msg-ai"
-        role_name = "YOU" if msg["role"] == "user" else "BUDDY"
-        chat_html += f'<div class="{role_class}"><b>{role_name}:</b> {msg["content"]}</div>'
-    chat_html += '</div>'
-    
-    st.sidebar.markdown(chat_html, unsafe_allow_html=True)
-    
-    # Chat input
-    user_input = st.sidebar.text_input("Message Cyber-Buddy...", key="chat_input", placeholder="Type a message...")
-    
-    if st.sidebar.button("Send", key="chat_send"):
-        if user_input:
-            st.session_state.chat_history.append({"role": "user", "content": user_input})
-            with st.spinner("Buddy is thinking..."):
-                response = get_companion_chat(user_data, user_input)
-                st.session_state.chat_history.append({"role": "ai", "content": response})
-            st.rerun()
+def render_pet_companion(user_data: dict, habits: list):
+    """Render an Arcane Familiar companion with theme-aware glow and rune motifs."""
+    name = user_data.get("pet_name", "Axiom")
+    mood = user_data.get("pet_mood", "curious")
+    personality = user_data.get("personality_type", "Balanced Builder")
+    completed_today = sum(1 for h in habits if h.is_completed_today())
+    total_habits = len(habits)
+
+    if total_habits == 0:
+        message = "Awaiting your first spell. Shape your runes and it will stir."
+    elif completed_today == total_habits:
+        message = "All sigils lit today. The familiar feeds on arcane rhythm."
+    elif completed_today > 0:
+        message = f"{completed_today}/{total_habits} sigils active. Whisper the next rune."
+    else:
+        message = "The familiar drifts near. One small sigil will rouse it."
+
+    st.markdown(f"""
+    <div class="arcane-pet" title="{name}: {message}">
+      <div class="arcane-pet-bubble">
+        <strong>{name}</strong><br>
+        {message}
+      </div>
+      <div class="arcane-pet-aura"></div>
+      <div class="arcane-pet-body">
+        <div class="arcane-pet-eye left"></div>
+        <div class="arcane-pet-eye right"></div>
+        <div class="arcane-pet-rune"></div>
+      </div>
+      <div class="arcane-pet-shadow"></div>
+      <div class="arcane-pet-meta">{mood} • {personality}</div>
+    </div>
+    """, unsafe_allow_html=True)

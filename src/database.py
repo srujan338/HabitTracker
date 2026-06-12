@@ -1,4 +1,5 @@
 import os
+import certifi
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -17,7 +18,8 @@ def get_db():
             # Fallback for local development if URI is missing
             _client = MongoClient("mongodb://localhost:27017/")
         else:
-            _client = MongoClient(MONGO_URI)
+            # Reverting to secure connection as TLS=False did not resolve the network block
+            _client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
     return _client[DB_NAME]
 
 def get_collection(name):
