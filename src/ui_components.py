@@ -19,6 +19,7 @@ Components included:
 
 import streamlit as st
 from datetime import date
+from src.i18n import t, render_language_selector, set_active_language, DEFAULT_LANGUAGE
 
 
 def get_streak_flame_emoji(streak: int) -> str:
@@ -389,8 +390,8 @@ def render_top_nav(habits: list, active_page: str, theme: str):
         active_page: Currently active page name
         theme: Current theme setting ("Dark" or "Light")
     """
-    # Create 3-column layout: Logo | Navigation | Theme Toggle
-    c1, c2, c3 = st.columns([3, 5, 2])
+    # Create 4-column layout: Logo | Navigation | Language | Theme Toggle
+    c1, c2, cl, c3 = st.columns([2, 6, 2, 1])
     
     # ── COLUMN 1: LOGO ──
     with c1:
@@ -403,31 +404,52 @@ def render_top_nav(habits: list, active_page: str, theme: str):
 
     # ── COLUMN 2: NAVIGATION BUTTONS ──
     with c2:
-        # Create evenly spaced navigation buttons
-        nav_cols = st.columns(3)
-        pages = ["Today", "My Habits", "AI Coach"]
+        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements", "Profile"]
+        page_keys = {
+            "Today": "nav.home",
+            "My Habits": "nav.habits",
+            "Events": "nav.events",
+            "Rankings": "nav.rankings",
+            "Achievements": "nav.achievements",
+            "Profile": "nav.profile"
+        }
+        icons = ["🏠", "📋", "🎯", "🏆", "🎖️", "👤"]
+        nav_cols = st.columns(len(pages))
         
-        for i, p in enumerate(pages):
+        for i, (p, icon) in enumerate(zip(pages, icons)):
             # Determine if this page is currently active
             is_active = (active_page == p) or (p == "Today" and active_page == "Habit Detail")
             
+            # Translate label
+            translated_label = t(page_keys[p])
+            
             # Style active button differently
-            label = f"**{p}**" if is_active else p
+            label = f"{icon} **{translated_label}**" if is_active else f"{icon} {translated_label}"
             
             # Custom styling for active state
             if nav_cols[i].button(label, key=f"nav_{p}", use_container_width=True):
                 st.session_state.active_page = p
                 st.rerun()
 
+    # ── COLUMN L: LANGUAGE SELECTOR ──
+    with cl:
+        render_language_selector()
+
     # ── COLUMN 3: THEME TOGGLE ──
     with c3:
         # Show appropriate icon for current theme
-        theme_icon = "🌙" if theme == "Dark" else "☀️"
-        theme_label = "Dark" if theme == "Dark" else "Light"
+        themes = ["Dark", "Light", "Retro"]
+        icons = ["🌙", "☀️", "🕹️"]
+        
+        current_idx = themes.index(theme)
+        next_idx = (current_idx + 1) % len(themes)
+        
+        theme_icon = icons[current_idx]
+        theme_label = themes[next_idx]
         
         if st.button(f"{theme_icon}", key="theme_toggle", 
                      help=f"Switch to {theme_label} theme"):
-            st.session_state.theme = "Light" if theme == "Dark" else "Dark"
+            st.session_state.theme = themes[next_idx]
             st.rerun()
     
     # Add subtle divider below nav
@@ -537,3 +559,38 @@ def render_loading_spinner(text: str = "Loading..."):
         <span>{text}</span>
     </div>
     ''', unsafe_allow_html=True)
+
+
+def render_pet_companion(user_data: dict, habits: list):
+    """Render an Arcane Familiar companion with theme-aware glow and rune motifs."""
+    name = user_data.get("pet_name", "Axiom")
+    mood = user_data.get("pet_mood", "curious")
+    personality = user_data.get("personality_type", "Balanced Builder")
+    completed_today = sum(1 for h in habits if h.is_completed_today())
+    total_habits = len(habits)
+
+    if total_habits == 0:
+        message = "Awaiting your first spell. Shape your runes and it will stir."
+    elif completed_today == total_habits:
+        message = "All sigils lit today. The familiar feeds on arcane rhythm."
+    elif completed_today > 0:
+        message = f"{completed_today}/{total_habits} sigils active. Whisper the next rune."
+    else:
+        message = "The familiar drifts near. One small sigil will rouse it."
+
+    st.markdown(f"""
+    <div class="arcane-pet" title="{name}: {message}">
+      <div class="arcane-pet-bubble">
+        <strong>{name}</strong><br>
+        {message}
+      </div>
+      <div class="arcane-pet-aura"></div>
+      <div class="arcane-pet-body">
+        <div class="arcane-pet-eye left"></div>
+        <div class="arcane-pet-eye right"></div>
+        <div class="arcane-pet-rune"></div>
+      </div>
+      <div class="arcane-pet-shadow"></div>
+      <div class="arcane-pet-meta">{mood} • {personality}</div>
+    </div>
+    """, unsafe_allow_html=True)
