@@ -1,332 +1,129 @@
 """
 =============================================================================
-AUTH MODULE - User Authentication & Profile Management
+AUTH MODULE - Supabase Authentication & Profile Management
 =============================================================================
-This module handles user authentication, profile management, and 
-gamification features including:
-- User registration and login
-- XP (experience points) and leveling system
-- User parameters/stats (discipline, consistency, etc.)
-- Global rankings
-- Achievements and badges
-
-Data Model:
-┌─────────────────────────────────────────────────────────────┐
-│  User Profile                                                │
-├─────────────────────────────────────────────────────────────┤
-│  - username, password (hashed)                               │
-│  - level, xp, xp_to_next_level                               │
-│  - parameters: discipline, consistency, dedication           │
-│  - global_rank, total_streak_days                            │
-│  - achievements, joined_events                               │
-│  - created_at, last_active                                   │
-└─────────────────────────────────────────────────────────────┘
-
-Gamification System:
-- XP earned from completing habits (10 XP per completion)
-- Bonus XP for streaks (streak_multiplier)
-- Level up every 100 XP (exponential scaling)
-- Parameters improve based on user behavior
+This module handles user management using Supabase (PostgreSQL).
 =============================================================================
 """
 
-import json
-import os
 import hashlib
-from datetime import date, timedelta
-from typing import List, Optional, Dict, Any
+import os
+import re
+from datetime import date
+from typing import List, Optional
 from dataclasses import dataclass, field, asdict
+from src.supabase_client import supabase
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# CONFIGURATION
-# ═══════════════════════════════════════════════════════════════════════════
-
-USERS_FILE = "data/users.json"
-
-# XP required for each level (level * 100)
+# Configuration
 XP_PER_LEVEL = 100
-
-# XP rewards
+USERS_TABLE = "users"
+ACHIEVEMENTS = {
+    "first_habit": {"name": "First Step", "description": "Create your first habit", "icon": "🌟", "xp_reward": 25},
+    "streak_3": {"name": "Getting Started", "description": "Achieve a 3-day streak", "icon": "🔥", "xp_reward": 50},
+    "streak_7": {"name": "Week Strong", "description": "Achieve a 7-day streak", "icon": "⚡", "xp_reward": 100},
+    "habits_5": {"name": "Habit Collector", "description": "Create 5 habits", "icon": "📋", "xp_reward": 100},
+}
 XP_HABIT_COMPLETION = 10
-XP_STREAK_BONUS = 5  # Bonus per streak day
-XP_EVENT_COMPLETION = 25
-
-# User parameters range
-PARAM_MIN = 1
-PARAM_MAX = 100
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# USER DATA MODEL
-# ═══════════════════════════════════════════════════════════════════════════
+XP_STREAK_BONUS = 5
 
 @dataclass
 class User:
-    """
-    Represents a user with gamification features.
-    
-    Attributes:
-        username: Unique username
-        password_hash: SHA-256 hash of password
-        level: Current user level (starts at 1)
-        xp: Current experience points
-        parameters: User stats (discipline, consistency, etc.)
-        global_rank: Position in global leaderboard
-        total_streak_days: Sum of all streak days across habits
-        achievements: List of earned achievement IDs
-        joined_events: List of event IDs user has joined
-        completed_events: List of event IDs user has completed
-        created_at: Account creation date
-        last_active: Last activity date
-    """
+    """Represents a user with gamification features."""
     username: str
-    password_hash: str
-    
-    # OAuth
+    password_hash: str = ""
     google_id: Optional[str] = None
     email: Optional[str] = None
-    
-    # Gamification
     level: int = 1
     xp: int = 0
     title: str = "Beginner"
-    
-    # User parameters (0-100 scale)
     discipline: int = 50
     consistency: int = 50
     dedication: int = 50
     focus: int = 50
-    
-    # Stats
+    creativity: int = 50
+    resilience: int = 50
     total_streak_days: int = 0
     total_completions: int = 0
     habits_created: int = 0
     events_joined: int = 0
     events_completed: int = 0
-    
-    # Collections
+    onboarding_completed: bool = False
+    personality_type: str = "Balanced Builder"
+    preferred_tone: str = "Friendly and direct"
+    pet_name: str = "Buddy"
+    pet_mood: str = "curious"
     achievements: List[str] = field(default_factory=list)
     joined_events: List[str] = field(default_factory=list)
     completed_events: List[str] = field(default_factory=list)
-    
-    # Metadata
     created_at: str = field(default_factory=lambda: date.today().isoformat())
     last_active: str = field(default_factory=lambda: date.today().isoformat())
     
-    @property
-    def xp_to_next_level(self) -> int:
-        """Calculate XP needed for next level."""
-        return self.level * XP_PER_LEVEL
-    
-    @property
-    def xp_progress(self) -> float:
-        """Calculate progress to next level (0.0 to 1.0)."""
-        return self.xp / self.xp_to_next_level if self.xp_to_next_level > 0 else 0.0
-    
-    def add_xp(self, amount: int) -> int:
-        """
-        Add XP and handle level ups.
-        
-        Returns:
-            Number of levels gained (0 if no level up)
-        """
-        self.xp += amount
-        levels_gained = 0
-        
-        # Check for level ups
-        while self.xp >= self.level * XP_PER_LEVEL:
-            self.xp -= self.level * XP_PER_LEVEL
-            self.level += 1
-            levels_gained += 1
-        
-        # Update title based on level
-        self.title = get_user_title(self.level)
-        
-        return levels_gained
-    
-    def get_rank_info(self) -> dict:
-        """Get user's global rank badge info."""
-        if self.level >= 50:
-            return {
-                "label": "Legend",
-                "color": "#F5A623",
-                "icon": "👑",
-                "description": "A true habit master"
-            }
-        elif self.level >= 30:
-            return {
-                "label": "Diamond",
-                "color": "#B9F2FF",
-                "icon": "💎",
-                "description": "Rare dedication"
-            }
-        elif self.level >= 20:
-            return {
-                "label": "Gold",
-                "color": "#FFD700",
-                "icon": "🥇",
-                "description": "Elite habit builder"
-            }
-        elif self.level >= 15:
-            return {
-                "label": "Platinum",
-                "color": "#E5E4E2",
-                "icon": "🏆",
-                "description": "Rising champion"
-            }
-        elif self.level >= 10:
-            return {
-                "label": "Silver",
-                "color": "#C0C0C0",
-                "icon": "🥈",
-                "description": "Consistent performer"
-            }
-        elif self.level >= 5:
-            return {
-                "label": "Bronze",
-                "color": "#CD7F32",
-                "icon": "🥉",
-                "description": "Building momentum"
-            }
-        elif self.level >= 2:
-            return {
-                "label": "Intermediate",
-                "color": "#4ECDC4",
-                "icon": "⭐",
-                "description": "On the path"
-            }
-        else:
-            return {
-                "label": "Beginner",
-                "color": "#94A3B8",
-                "icon": "🌱",
-                "description": "Just starting out"
-            }
-    
-    def update_parameters(self, habits: list = None):
-        """
-        Recalculate user parameters based on behavior.
-        
-        Parameters reflect different aspects of habit building:
-        - Discipline: Consistency in completing habits
-        - Consistency: How regular the user is
-        - Dedication: Time spent and effort
-        - Focus: Number of active habits and completion rate
-        """
-        if habits:
-            # Calculate based on habit performance
-            total_habits = len(habits)
-            completed_today = sum(1 for h in habits if h.is_completed_today())
-            
-            if total_habits > 0:
-                # Discipline: based on today's completion rate
-                today_rate = completed_today / total_habits
-                self.discipline = min(100, max(1, 
-                    int(self.discipline * 0.9 + today_rate * 100 * 0.1)))
-                
-                # Consistency: based on streaks
-                avg_streak = sum(h.get_current_streak() for h in habits) / total_habits
-                target_streak = 7  # Aim for week-long streaks
-                consistency_score = min(1.0, avg_streak / target_streak)
-                self.consistency = min(100, max(1,
-                    int(self.consistency * 0.95 + consistency_score * 100 * 0.05)))
-                
-                # Dedication: based on total completions
-                total_completions = sum(h.get_total_completions() for h in habits)
-                dedication_score = min(1.0, total_completions / (total_habits * 30))
-                self.dedication = min(100, max(1,
-                    int(self.dedication * 0.95 + dedication_score * 100 * 0.05)))
-                
-                # Focus: based on completion rate over 30 days
-                avg_rate = sum(h.get_completion_rate(30) for h in habits) / total_habits
-                self.focus = min(100, max(1,
-                    int(self.focus * 0.95 + avg_rate * 0.05)))
-    
     def to_dict(self) -> dict:
-        """Convert User to dictionary for JSON serialization."""
         return asdict(self)
     
     @classmethod
     def from_dict(cls, d: dict) -> "User":
-        """Create User from dictionary."""
-        return cls(
-            username=d.get("username", "Anonymous"),
-            password_hash=d.get("password_hash", ""),
-            google_id=d.get("google_id"),
-            email=d.get("email"),
-            level=d.get("level", 1),
-            xp=d.get("xp", 0),
-            title=d.get("title", "Beginner"),
-            discipline=d.get("discipline", 50),
-            consistency=d.get("consistency", 50),
-            dedication=d.get("dedication", 50),
-            focus=d.get("focus", 50),
-            total_streak_days=d.get("total_streak_days", 0),
-            total_completions=d.get("total_completions", 0),
-            habits_created=d.get("habits_created", 0),
-            events_joined=d.get("events_joined", 0),
-            events_completed=d.get("events_completed", 0),
-            achievements=d.get("achievements", []),
-            joined_events=d.get("joined_events", []),
-            completed_events=d.get("completed_events", []),
-            created_at=d.get("created_at", date.today().isoformat()),
-            last_active=d.get("last_active", date.today().isoformat()),
-        )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# HELPER FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
-def hash_password(password: str) -> str:
-    """Hash a password using SHA-256."""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
-def get_user_title(level: int) -> str:
-    """Get the title for a given level."""
-    titles = {
-        1: "Novice",
-        2: "Apprentice",
-        3: "Learner",
-        5: "Explorer",
-        10: "Adventurer",
-        15: "Challenger",
-        20: "Warrior",
-        25: "Guardian",
-        30: "Champion",
-        40: "Master",
-        50: "Grand Master",
-    }
+        data = {k: v for k, v in d.items() if k in cls.__annotations__}
+        return cls(**data)
     
-    # Find the highest title the user qualifies for
-    qualified_title = "Novice"
-    for lvl, title in sorted(titles.items()):
-        if level >= lvl:
-            qualified_title = title
-        else:
-            break
+    @property
+    def xp_to_next_level(self) -> int:
+        return self.level * XP_PER_LEVEL
     
-    return qualified_title
+    @property
+    def xp_progress(self) -> float:
+        return self.xp / self.xp_to_next_level if self.xp_to_next_level > 0 else 0.0
+    
+    def add_xp(self, amount: int) -> int:
+        self.xp += amount
+        levels_gained = 0
+        while self.xp >= self.level * XP_PER_LEVEL:
+            self.xp -= self.level * XP_PER_LEVEL
+            self.level += 1
+            levels_gained += 1
+        self.title = get_user_title(self.level)
+        return levels_gained
 
+    def update_parameters(self, habits: list = None):
+        """Recalculate trait stats from current habit behavior."""
+        if not habits:
+            return
 
-# ═══════════════════════════════════════════════════════════════════════════
-# EVENT/CHALLENGE DATA MODEL
-# ═══════════════════════════════════════════════════════════════════════════
+        total_habits = len(habits)
+        if total_habits == 0:
+            return
+
+        completed_today = sum(1 for h in habits if h.is_completed_today())
+        today_rate = completed_today / total_habits
+        avg_streak = sum(h.get_current_streak() for h in habits) / total_habits
+        total_done = sum(h.get_total_completions() for h in habits)
+        avg_rate = sum(h.get_completion_rate(30) for h in habits) / total_habits
+        quit_habits = sum(1 for h in habits if h.habit_type == "quit")
+
+        self.discipline = _blend_score(self.discipline, today_rate * 100, 0.12)
+        self.consistency = _blend_score(self.consistency, min(avg_streak / 7, 1) * 100, 0.08)
+        self.dedication = _blend_score(self.dedication, min(total_done / (total_habits * 30), 1) * 100, 0.08)
+        self.focus = _blend_score(self.focus, avg_rate, 0.08)
+        self.creativity = _blend_score(self.creativity, min(total_habits / 6, 1) * 100, 0.04)
+        self.resilience = _blend_score(self.resilience, min((avg_streak + quit_habits) / 8, 1) * 100, 0.06)
+        self.total_streak_days = int(sum(h.get_current_streak() for h in habits))
+    
+    def get_rank_info(self) -> dict:
+        if self.level >= 50: return {"label": "Legend", "color": "#F5A623", "icon": "👑"}
+        elif self.level >= 30: return {"label": "Diamond", "color": "#B9F2FF", "icon": "💎"}
+        elif self.level >= 20: return {"label": "Gold", "color": "#FFD700", "icon": "🥇"}
+        elif self.level >= 15: return {"label": "Platinum", "color": "#E5E4E2", "icon": "🏆"}
+        elif self.level >= 10: return {"label": "Silver", "color": "#C0C0C0", "icon": "🥈"}
+        elif self.level >= 5: return {"label": "Bronze", "color": "#CD7F32", "icon": "🥉"}
+        elif self.level >= 2: return {"label": "Intermediate", "color": "#4ECDC4", "icon": "⭐"}
+        else: return {"label": "Beginner", "color": "#94A3B8", "icon": "🌱"}
 
 @dataclass
 class Event:
-    """
-    Represents a community challenge/event.
-    
-    Events are time-bound challenges that users can join
-    to work on specific habits together.
-    """
     id: str
     name: str
     description: str
-    habit_suggestion: str  # e.g., "10 pushups daily"
+    habit_suggestion: str
     emoji: str
     start_date: str
     end_date: str
@@ -339,388 +136,245 @@ class Event:
     
     @classmethod
     def from_dict(cls, d: dict) -> "Event":
-        return cls(**d)
+        return cls(**{k: v for k, v in d.items() if k in cls.__annotations__})
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# STORAGE FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
-def _ensure_data_dir():
-    """Ensure the data directory exists."""
-    os.makedirs("data", exist_ok=True)
-
-
-def load_users() -> List[User]:
-    """Load all users from MongoDB."""
-    collection = get_collection(USERS_COLLECTION)
-    users_data = list(collection.find({}))
-    
-    return [User.from_dict(u) for u in users_data]
-
-
-from src.database import get_collection
-
-# Collection names
-USERS_COLLECTION = "users"
-
-def save_users(users: List[User]) -> None:
-    """Save all users to MongoDB."""
-    collection = get_collection(USERS_COLLECTION)
-    
-    for user in users:
-        user_dict = user.to_dict()
-        # Remove _id if present (MongoDB will generate)
-        if "_id" in user_dict:
-            del user_dict["_id"]
-        
-        # Use upsert to update if exists, insert if new
-        collection.replace_one(
-            {"username": user.username},
-            user_dict,
-            upsert=True
-        )
-
-
-def load_events() -> List[Event]:
-    """Load community events from the JSON file."""
-    _ensure_data_dir()
-    
-    events_file = "data/events.json"
-    if not os.path.exists(events_file):
-        # Create default events
-        default_events = create_default_events()
-        save_events(default_events)
-        return default_events
-    
-    try:
-        with open(events_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        if not isinstance(data, list):
-            return []
-        
-        return [Event.from_dict(e) for e in data]
-    
-    except (json.JSONDecodeError, IOError):
-        return create_default_events()
-
-
-def save_events(events: List[Event]) -> None:
-    """Save events to the JSON file."""
-    _ensure_data_dir()
-    
-    events_file = "data/events.json"
-    try:
-        temp_file = events_file + ".tmp"
-        
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump([e.to_dict() for e in events], f, indent=2, ensure_ascii=False)
-        
-        os.replace(temp_file, events_file)
-    
-    except IOError as e:
-        print(f"Error saving events: {e}")
-
-
-def create_default_events() -> List[Event]:
-    """Create default community events."""
-    today = date.today()
-    
-    return [
-        Event(
-            id="event_001",
-            name="🏋️ 10 Pushups Challenge",
-            description="Do 10 pushups every day for 7 days. Build your strength!",
-            habit_suggestion="10 Pushups Daily",
-            emoji="🏋️",
-            start_date=(today - timedelta(days=2)).isoformat(),
-            end_date=(today + timedelta(days=5)).isoformat(),
-            xp_reward=100,
-            is_active=True
-        ),
-        Event(
-            id="event_002",
-            name="📚 Read 10 Pages Daily",
-            description="Read at least 10 pages of any book every day for 14 days.",
-            habit_suggestion="Read 10 Pages",
-            emoji="📚",
-            start_date=(today - timedelta(days=1)).isoformat(),
-            end_date=(today + timedelta(days=13)).isoformat(),
-            xp_reward=200,
-            is_active=True
-        ),
-        Event(
-            id="event_003",
-            name="💧 Hydration Challenge",
-            description="Drink 8 glasses of water daily for 10 days.",
-            habit_suggestion="8 Glasses of Water",
-            emoji="💧",
-            start_date=today.isoformat(),
-            end_date=(today + timedelta(days=10)).isoformat(),
-            xp_reward=150,
-            is_active=True
-        ),
-        Event(
-            id="event_004",
-            name="🧘 Morning Meditation",
-            description="Meditate for 10 minutes every morning for 21 days.",
-            habit_suggestion="10 Min Morning Meditation",
-            emoji="🧘",
-            start_date=(today - timedelta(days=5)).isoformat(),
-            end_date=(today + timedelta(days=16)).isoformat(),
-            xp_reward=300,
-            is_active=True
-        ),
-    ]
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# AUTHENTICATION FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════════════
-
+# Authentication & Storage
 def register_user(username: str, password: str) -> tuple:
-    """
-    Register a new user.
+    if not username or not username.strip(): return None, "Username cannot be empty."
+    if len(password) < 4: return None, "Password must be at least 4 characters."
     
-    Args:
-        username: Desired username
-        password: User's password
-    
-    Returns:
-        Tuple of (User object, error message)
-        - On success: (User, None)
-        - On failure: (None, "error message")
-    """
-    if not username or not username.strip():
-        return None, "Username cannot be empty."
-    
-    if len(password) < 4:
-        return None, "Password must be at least 4 characters."
-    
-    username = username.strip()
-    
-    # Check if user already exists
-    users = load_users()
-    if any(u.username.lower() == username.lower() for u in users):
-        return None, "Username already taken."
-    
-    # Create new user
-    password_hash = hash_password(password)
-    new_user = User(username=username, password_hash=password_hash)
-    
-    users.append(new_user)
-    save_users(users)
-    
+    normalized_username = username.strip().lower()
+    response = supabase.table(USERS_TABLE).select("*").eq("username", normalized_username).execute()
+    if response.data: return None, "Username already taken."
+        
+    new_user = User(username=normalized_username, password_hash=hashlib.sha256(password.encode()).hexdigest())
+    _write_user_payload("insert", new_user.to_dict())
     return new_user, None
 
-
 def login_user(username: str, password: str) -> tuple:
-    """
-    Authenticate a user.
+    response = supabase.table(USERS_TABLE).select("*").eq("username", username.lower()).eq("password_hash", hashlib.sha256(password.encode()).hexdigest()).execute()
     
-    Args:
-        username: User's username
-        password: User's password
-    
-    Returns:
-        Tuple of (User object, error message)
-        - On success: (User, None)
-        - On failure: (None, "error message")
-    """
-    users = load_users()
-    password_hash = hash_password(password)
-    
-    for user in users:
-        if user.username.lower() == username.lower() and user.password_hash == password_hash:
-            # Update last active
-            user.last_active = date.today().isoformat()
-            save_users(users)
-            return user, None
-    
+    if response.data:
+        return User.from_dict(response.data[0]), None
     return None, "Invalid username or password."
 
+def update_user(user: User) -> None:
+    user_dict = user.to_dict()
+    if "_id" in user_dict: del user_dict["_id"]
+    _write_user_payload("update", user_dict, user.username)
+
+def load_users() -> List[User]:
+    response = supabase.table(USERS_TABLE).select("*").execute()
+    return [User.from_dict(u) for u in response.data]
 
 def get_user_by_username(username: str) -> Optional[User]:
-    """Get a user by username."""
-    users = load_users()
-    for user in users:
-        if user.username.lower() == username.lower():
-            return user
+    response = supabase.table(USERS_TABLE).select("*").eq("username", username.lower()).execute()
+    if response.data:
+        return User.from_dict(response.data[0])
     return None
 
+def get_google_oauth_url() -> tuple:
+    """Create a Supabase Google OAuth URL for Streamlit."""
+    redirect_to = os.getenv("SUPABASE_AUTH_REDIRECT_URL", "http://localhost:8501")
+    try:
+        response = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {"redirect_to": redirect_to},
+        })
+        return response.url, None
+    except Exception as exc:
+        return None, f"Could not start Google login: {exc}"
 
-def update_user(user: User) -> None:
-    """Update a user's data in storage."""
-    users = load_users()
-    for i, u in enumerate(users):
-        if u.username == user.username:
-            users[i] = user
-            break
-    save_users(users)
+def login_with_google_code(code: str) -> tuple:
+    """Exchange an OAuth callback code and create/load the app profile."""
+    try:
+        response = supabase.auth.exchange_code_for_session({"auth_code": code})
+    except Exception as exc:
+        return None, f"Google login failed at exchange step: {exc}"
 
+    auth_user = getattr(response, "user", None)
+    if auth_user is None:
+        return None, "Google login did not return a user."
+
+    email = getattr(auth_user, "email", None) or ""
+    google_id = getattr(auth_user, "id", None) or ""
+    if not google_id:
+        return None, "Google login returned an account without an id."
+
+    username = _username_from_email(email, google_id)
+
+    existing = get_user_by_google_id(google_id) or get_user_by_username(username)
+    if existing:
+        existing.google_id = existing.google_id or google_id
+        existing.email = existing.email or email
+        existing.last_active = date.today().isoformat()
+        update_user(existing)
+        return existing, None
+
+    new_user = User(
+        username=username,
+        google_id=google_id,
+        email=email,
+        password_hash="",
+        onboarding_completed=False,
+    )
+    _write_user_payload("insert", new_user.to_dict())
+    return new_user, None
+
+def get_user_by_google_id(google_id: str) -> Optional[User]:
+    response = supabase.table(USERS_TABLE).select("*").eq("google_id", google_id).execute()
+    if response.data:
+        return User.from_dict(response.data[0])
+    return None
+
+def _write_user_payload(operation: str, payload: dict, username: str = None) -> None:
+    """Write users while tolerating a partially migrated Supabase schema."""
+    working_payload = dict(payload)
+    missing_columns = set()
+
+    for _ in range(20):
+        try:
+            if operation == "insert":
+                supabase.table(USERS_TABLE).insert(working_payload).execute()
+            elif operation == "update":
+                supabase.table(USERS_TABLE).update(working_payload).eq("username", username).execute()
+            else:
+                raise ValueError(f"Unknown user write operation: {operation}")
+            return
+        except Exception as exc:
+            column = _extract_missing_column(str(exc))
+            if not column or column in missing_columns or column not in working_payload:
+                raise
+            missing_columns.add(column)
+            del working_payload[column]
+
+def _extract_missing_column(error_text: str) -> Optional[str]:
+    match = re.search(r"Could not find the '([^']+)' column", error_text)
+    if match:
+        return match.group(1)
+    return None
 
 def get_global_rankings(limit: int = 10) -> List[tuple]:
-    """
-    Get global rankings sorted by level (descending).
-    
-    Args:
-        limit: Number of top users to return
-    
-    Returns:
-        List of tuples (rank, user)
-    """
-    users = load_users()
-    # Sort by level (descending), then by xp (descending)
-    users.sort(key=lambda u: (u.level, u.xp), reverse=True)
-    
-    return [(i + 1, user) for i, user in enumerate(users[:limit])]
-
+    response = supabase.table(USERS_TABLE).select("*").order("level", desc=True).order("xp", desc=True).limit(limit).execute()
+    users = [User.from_dict(u) for u in response.data]
+    return [(i + 1, user) for i, user in enumerate(users)]
 
 def get_user_rank_position(username: str) -> int:
-    """Get a user's position in global rankings."""
     users = load_users()
-    target_user = None
-    
-    for user in users:
-        if user.username.lower() == username.lower():
-            target_user = user
-            break
-    
-    if not target_user:
-        return -1
-    
-    # Sort and find position
     users.sort(key=lambda u: (u.level, u.xp), reverse=True)
-    
     for i, user in enumerate(users):
-        if user.username == target_user.username:
+        if user.username.lower() == username.lower():
             return i + 1
-    
     return -1
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ACHIEVEMENT SYSTEM
-# ═══════════════════════════════════════════════════════════════════════════
-
-ACHIEVEMENTS = {
-    "first_habit": {
-        "name": "First Step",
-        "description": "Create your first habit",
-        "icon": "🌟",
-        "xp_reward": 25
-    },
-    "streak_3": {
-        "name": "Getting Started",
-        "description": "Achieve a 3-day streak",
-        "icon": "🔥",
-        "xp_reward": 50
-    },
-    "streak_7": {
-        "name": "Week Warrior",
-        "description": "Achieve a 7-day streak",
-        "icon": "⚡",
-        "xp_reward": 100
-    },
-    "streak_14": {
-        "name": "Fortnight Fighter",
-        "description": "Achieve a 14-day streak",
-        "icon": "💪",
-        "xp_reward": 200
-    },
-    "streak_30": {
-        "name": "Monthly Master",
-        "description": "Achieve a 30-day streak",
-        "icon": "🏆",
-        "xp_reward": 500
-    },
-    "level_5": {
-        "name": "Rising Star",
-        "description": "Reach level 5",
-        "icon": "⭐",
-        "xp_reward": 100
-    },
-    "level_10": {
-        "name": "Dedicated Builder",
-        "description": "Reach level 10",
-        "icon": "🌟",
-        "xp_reward": 250
-    },
-    "event_first": {
-        "name": "Social Butterfly",
-        "description": "Join your first event",
-        "icon": "🦋",
-        "xp_reward": 50
-    },
-    "event_complete": {
-        "name": "Champion",
-        "description": "Complete an event",
-        "icon": "🥇",
-        "xp_reward": 200
-    },
-    "habits_5": {
-        "name": "Habit Collector",
-        "description": "Create 5 habits",
-        "icon": "📋",
-        "xp_reward": 100
-    },
-}
-
-
 def check_achievements(user: User, habits: list = None) -> List[str]:
-    """
-    Check if user has earned any new achievements.
-    
-    Returns:
-        List of newly earned achievement IDs
-    """
     new_achievements = []
-    
-    # First habit
-    if "first_habit" not in user.achievements and habits and len(habits) >= 1:
+    if habits and "first_habit" not in user.achievements and len(habits) >= 1:
         new_achievements.append("first_habit")
-    
-    # Habit collector
-    if "habits_5" not in user.achievements and habits and len(habits) >= 5:
+    if habits and "habits_5" not in user.achievements and len(habits) >= 5:
         new_achievements.append("habits_5")
-    
-    # Streak achievements
     if habits:
         best_streak = max((h.get_current_streak() for h in habits), default=0)
-        
-        streak_achievements = [
-            ("streak_3", 3),
-            ("streak_7", 7),
-            ("streak_14", 14),
-            ("streak_30", 30),
-        ]
-        
-        for ach_id, required_streak in streak_achievements:
-            if ach_id not in user.achievements and best_streak >= required_streak:
+        for ach_id, required in [("streak_3", 3), ("streak_7", 7)]:
+            if ach_id not in user.achievements and best_streak >= required:
                 new_achievements.append(ach_id)
-    
-    # Level achievements
-    level_achievements = [
-        ("level_5", 5),
-        ("level_10", 10),
-    ]
-    
-    for ach_id, required_level in level_achievements:
-        if ach_id not in user.achievements and user.level >= required_level:
-            new_achievements.append(ach_id)
-    
-    # Event achievements
-    if "event_first" not in user.achievements and len(user.joined_events) >= 1:
-        new_achievements.append("event_first")
-    
-    if "event_complete" not in user.achievements and len(user.completed_events) >= 1:
-        new_achievements.append("event_complete")
-    
-    # Award XP for new achievements
+
     for ach_id in new_achievements:
         user.achievements.append(ach_id)
-        if ach_id in ACHIEVEMENTS:
-            user.add_xp(ACHIEVEMENTS[ach_id]["xp_reward"])
-    
+        user.add_xp(ACHIEVEMENTS[ach_id]["xp_reward"])
     return new_achievements
+
+# Event Functions
+def load_events() -> List[Event]:
+    return []
+
+def save_events(events: List[Event]) -> None:
+    pass
+
+def apply_onboarding_profile(user: User, answers: dict) -> None:
+    """Convert quiz answers into initial user traits and companion style."""
+    scores = {
+        "discipline": 45,
+        "consistency": 45,
+        "dedication": 45,
+        "focus": 45,
+        "creativity": 45,
+        "resilience": 45,
+    }
+
+    for values in answers.values():
+        if not isinstance(values, list):
+            values = [values]
+        for value in values:
+            for trait, delta in QUIZ_SCORE_MAP.get(value, {}).items():
+                scores[trait] = min(95, max(15, scores[trait] + delta))
+
+    for trait, score in scores.items():
+        setattr(user, trait, score)
+
+    top_trait = max(scores, key=scores.get)
+    user.personality_type = {
+        "discipline": "Structured Achiever",
+        "consistency": "Steady Builder",
+        "dedication": "Deep Worker",
+        "focus": "Precision Planner",
+        "creativity": "Creative Explorer",
+        "resilience": "Comeback Specialist",
+    }[top_trait]
+    user.preferred_tone = answers.get("motivation_style", "Friendly and direct")
+    user.pet_name = answers.get("companion_name") or "Buddy"
+    user.pet_mood = "energized"
+    user.onboarding_completed = True
+    user.last_active = date.today().isoformat()
+
+def _blend_score(current: int, target: float, weight: float) -> int:
+    return min(100, max(1, int(current * (1 - weight) + target * weight)))
+
+def _username_from_email(email: str, fallback: str) -> str:
+    if email and "@" in email:
+        return email.split("@", 1)[0].strip().lower()
+    return f"google_{fallback[:8]}"
+
+def get_user_title(level: int) -> str:
+    titles = {
+        1: "Novice",
+        2: "Apprentice",
+        3: "Learner",
+        5: "Explorer",
+        10: "Adventurer",
+        15: "Challenger",
+        20: "Warrior",
+        30: "Champion",
+        40: "Master",
+        50: "Grand Master",
+    }
+    title = "Novice"
+    for required_level, name in sorted(titles.items()):
+        if level >= required_level:
+            title = name
+    return title
+
+QUIZ_SCORE_MAP = {
+    "I follow a plan and like checking things off": {"discipline": 16, "focus": 8},
+    "I get bursts of energy and enjoy experimenting": {"creativity": 16, "resilience": 6},
+    "I am steady when the system is simple": {"consistency": 16, "discipline": 6},
+    "I restart well after missing days": {"resilience": 18, "consistency": 5},
+    "Clear targets": {"focus": 12, "discipline": 8},
+    "Variety and novelty": {"creativity": 14, "dedication": 4},
+    "Accountability": {"consistency": 10, "dedication": 8},
+    "A calm routine": {"focus": 10, "consistency": 10},
+    "Morning": {"discipline": 8, "focus": 6},
+    "Afternoon": {"dedication": 8, "creativity": 4},
+    "Evening": {"resilience": 8, "consistency": 4},
+    "Late night": {"creativity": 8, "resilience": 4},
+    "Gentle encouragement": {"resilience": 8},
+    "Direct challenge": {"discipline": 8, "dedication": 6},
+    "Playful praise": {"creativity": 8, "consistency": 4},
+    "Quiet reminders": {"focus": 8, "consistency": 4},
+    "Health and energy": {"discipline": 8, "dedication": 8},
+    "Learning and skills": {"focus": 8, "creativity": 8},
+    "Mindfulness": {"resilience": 8, "focus": 8},
+    "Productivity": {"discipline": 8, "focus": 8},
+    "Creativity": {"creativity": 14},
+    "Social confidence": {"resilience": 8, "dedication": 6},
+}
