@@ -655,17 +655,16 @@ def render_xp_progress(user: User):
 
 def render_user_parameters(user: User):
     """Render user parameter stats as a hexagonal radar chart."""
-    glass_card_start("Character Stats", user.personality_type)
-    
-    params = [
-        ("Discipline", user.discipline),
-        ("Consistency", user.consistency),
-        ("Dedication", user.dedication),
-        ("Focus", user.focus),
-        ("Creativity", user.creativity),
-        ("Resilience", user.resilience),
-    ]
+    glass_card_start(t("profile.stats_title"), user.personality_type)
 
+    params = [
+        (t("profile.param_discipline"), user.discipline),
+        (t("profile.param_consistency"), user.consistency),
+        (t("profile.param_dedication"), user.dedication),
+        (t("profile.param_focus"), user.focus),
+        (t("profile.param_creativity"), user.creativity),
+        (t("profile.param_resilience"), user.resilience),
+    ]
     if st_echarts:
         options = {
             "radar": {
