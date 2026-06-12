@@ -60,8 +60,9 @@ from src.auth import (
     check_achievements, ACHIEVEMENTS,
     XP_HABIT_COMPLETION, XP_STREAK_BONUS
 )
-from src.ui_components import render_top_nav, render_pet_companion, glass_card_start, glass_card_end, rank_badge, render_stats_cards, celebration_effect, motivation_message, render_empty_state, get_streak_flame_emoji
+from src.ui_components import render_top_nav
 from src.calendars import render_global_calendar, render_habit_calendar, render_streak_visualization
+from src.companion_widget import render_companion
 
 
 STARTER_HABITS = {
@@ -216,6 +217,12 @@ def init_app():
     if "oauth_checked" not in st.session_state:
         st.session_state.oauth_checked = False
 
+    if "onboarding_completed" not in st.session_state:
+        st.session_state.onboarding_completed = False
+
+    if "pet_room" not in st.session_state:
+        st.session_state.pet_room = False
+
     set_active_language(st.session_state.get("app_language", DEFAULT_LANGUAGE))
 
 
@@ -243,11 +250,6 @@ def set_logged_in_user(user: User):
 
 def handle_google_oauth_callback():
     """Complete Google OAuth when Supabase redirects back with a code."""
-    if st.session_state.get("oauth_checked"):
-        return
-
-    st.session_state.oauth_checked = True
-
     raw_params = dict(st.query_params) if hasattr(st, "query_params") else {}
     code = raw_params.get("code") or ""
     if isinstance(code, list):
@@ -256,16 +258,25 @@ def handle_google_oauth_callback():
     if not code:
         return
 
+    # If we already have a user, do nothing
+    if st.session_state.get("user"):
+        st.query_params.clear()
+        return
+
+    # Process the exchange
     user, error = login_with_google_code(code)
+    
+    # Always clear the query params to prevent re-processing the same code
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
     if user:
         set_logged_in_user(user)
-        try:
-            st.query_params.clear()
-        except Exception:
-            pass
         st.rerun()
     else:
-        st.error(error)
+        st.error(f"OAuth Error: {error}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1087,20 +1098,36 @@ def render_profile_page(user: User, habits: list):
                             update_user(user)
                             save_user_data()
                             st.success(t("profile.saved"))
+        with left_col:
+            # ── PET / COMPANION ──
+            with st.form("pet_form", clear_on_submit=False):
+                from src.pet_types import PET_TYPES
+                current_pet_code = (st.session_state.get("pet_type") or getattr(user, "personality_type", None) or "fox")
+                current_pet_code = current_pet_code if current_pet_code in PET_TYPES else "fox"
+                pet_name = st.text_input(t("profile.companion_name"), value=user.pet_name or t("profile.companion_default"))
+                mood = st.selectbox(
+                    t("profile.companion_mood"),
+                    [t("profile.mood_curious"), t("profile.mood_energized"), t("profile.mood_sleepy"), t("profile.mood_loyal")],
+                    index=0,
+                )
+                pet_type = st.selectbox(
+                    "Pet type",
+                    list(PET_TYPES.keys()),
+                    index=list(PET_TYPES.keys()).index(current_pet_code),
+                    format_func=lambda code: PET_TYPES[code].label,
+                )
+                if st.form_submit_button(t("profile.save_companion")):
+                    user.pet_name = pet_name.strip() or t("profile.companion_default")
+                    user.pet_mood = mood
+                    st.session_state.pet_type = pet_type
+                    save_user_data()
+                    from src.companion_widget import speak
+                    speak(f"{PET_TYPES[pet_type].emoji} {user.pet_name} reconnected")
+                    st.success(t("profile.companion_updated"))
 
-        # ── PET / COMPANION ──
-        with st.form("pet_form", clear_on_submit=False):
-            pet_name = st.text_input(t("profile.companion_name"), value=user.pet_name or t("profile.companion_default"))
-            mood = st.selectbox(
-                t("profile.companion_mood"),
-                [t("profile.mood_curious"), t("profile.mood_energized"), t("profile.mood_sleepy"), t("profile.mood_loyal")],
-                index=0,
-            )
-            if st.form_submit_button(t("profile.save_companion")):
-                user.pet_name = pet_name.strip() or t("profile.companion_default")
-                user.pet_mood = mood
-                save_user_data()
-                st.success(t("profile.companion_updated"))
+            if st.button("← Back to dashboard", use_container_width=True):
+                st.session_state.active_page = "Today"
+                st.rerun()
 
     with right_col:
         # ── APPEARANCE ──
@@ -1132,6 +1159,15 @@ def render_profile_page(user: User, habits: list):
             st.rerun()
 
 
+def page_pet_room(user: User):
+    habits = st.session_state.get("habits", [])
+    done = sum(1 for h in habits if h.is_completed_today())
+    total = len(habits)
+    last_active = getattr(user, "last_active", None)
+    from src.pet_dashboard import render_pet_room
+    render_pet_room(user.username, done, total, last_active)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1154,10 +1190,17 @@ def main():
     if not user.onboarding_completed:
         page_onboarding(user)
         return
-    
+
+    if st.session_state.get("pet_room"):
+        st.session_state.pet_room = False
+        page_pet_room(user)
+        return
+
     # ── Render Navigation ──
     render_top_nav(habits, active, st.session_state.theme)
-    render_pet_companion(user.to_dict(), habits)
+    render_companion()
+
+    # Apply today's interactions to the pet/session state.
     
     # ── Route to Page ──
     _, stage, _ = st.columns([1, 10, 1])
