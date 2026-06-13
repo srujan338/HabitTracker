@@ -994,58 +994,8 @@ def page_rankings(user: User):
         elif is_current_user:
             bg_style = "background: rgba(123, 97, 255, 0.1);"
         
-        st.markdown(f'''
-        <div 
-            onclick="
-                const inputs = window.parent.document.querySelectorAll('input');
-                for (const input of inputs) {{
-                    if (input.getAttribute('aria-label') === 'Selection helper') {{
-                        input.value = '{player.username}';
-                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        break;
-                    }}
-                }}
-            "
-            style="
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                padding: 12px 16px;
-                border-radius: var(--radius-lg);
-                margin-bottom: 8px;
-                {bg_style}
-                border: 1px solid {'var(--accent2)' if is_current_user else 'var(--border2)'};
-                cursor: pointer;
-                transition: transform 0.2s ease;
-            "
-            onmouseover="this.style.transform='translateX(4px)'"
-            onmouseout="this.style.transform='translateX(0)'"
-        >
-            <div style="font-size: 20px; font-weight: 700; color: var(--text); width: 30px;">
-                {'🥇' if rank_num == 1 else '🥈' if rank_num == 2 else '🥉' if rank_num == 3 else f'#{rank_num}'}
-            </div>
-            <div style="font-size: 24px;">{player_rank['icon']}</div>
-            <div style="flex: 1;">
-                <div style="font-weight: 600; color: var(--text); margin-bottom: 4px;">
-                    {player.username}
-                    {'(You)' if is_current_user else ''}
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 12px; color: var(--text2);">
-                            {player.title} • Level {player.level}
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 16px; font-weight: 700; color: var(--accent2);">
-                            {player.xp} XP
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+        username_display = player.username.strip()
+        st.markdown(f'''<div onclick="const ins=window.parent.document.querySelectorAll('input');for(const i of ins){{if(i.getAttribute('aria-label')==='Selection helper'){{i.value='{username_display}';i.dispatchEvent(new Event('input',{{bubbles:true}}));i.dispatchEvent(new Event('change',{{bubbles:true}}));break;}}}}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:var(--radius-lg);margin-bottom:8px;{bg_style}border:1px solid {'var(--accent2)' if is_current_user else 'var(--border2)'};cursor:pointer;transition:transform 0.2s ease;" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform='translateX(0)'"><div style="font-size:20px;font-weight:700;color:var(--text);width:30px;">{'🥇' if rank_num==1 else '🥈' if rank_num==2 else '🥉' if rank_num==3 else f'#{rank_num}'}</div><div style="font-size:24px;">{player_rank['icon']}</div><div style="flex:1;"><div style="font-weight:600;color:var(--text);margin-bottom:4px;">{username_display}{' (You)' if is_current_user else ''}</div><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:12px;color:var(--text2);">{player.title} • Level {player.level}</div></div><div style="text-align:right;"><div style="font-size:16px;font-weight:700;color:var(--accent2);">{player.xp} XP</div></div></div></div></div>''', unsafe_allow_html=True)
     
     glass_card_end()
     
