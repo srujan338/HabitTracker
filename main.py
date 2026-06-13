@@ -588,6 +588,18 @@ def page_today(habits, user: User):
             message=t("dashboard.no_habits"),
             icon="🌟"
         )
+    
+    # ── Pro Tips Section ──
+    with st.expander("💡 Professional Habit Tips", expanded=False):
+        tips = [
+            "**Habit Stacking**: Attach a new habit to an existing one (e.g., 'After I pour my coffee, I will meditate').",
+            "**Start Small**: Making it too easy to fail is the key to consistency.",
+            "**Never Miss Twice**: If you miss a day, make sure you don't miss the next one.",
+            "**Environment Design**: Make the cues for your good habits obvious and the cues for bad habits invisible."
+        ]
+        import random
+        st.info(random.choice(tips))
+
     habits_sorted = list(habits)
     for idx, h in enumerate(habits_sorted):
         key = f"{idx}_{h.name}"
@@ -878,6 +890,34 @@ def page_manage(habits, user: User):
     if not habits:
         st.info(t("habits.none_yet"))
     else:
+        # Data Export Feature
+        import pandas as pd
+        import io
+        
+        export_data = []
+        for h in habits:
+            export_data.append({
+                "Name": h.name,
+                "Type": h.habit_type,
+                "Category": CATEGORIES.get(h.category, h.category),
+                "Total Completions": h.get_total_completions(),
+                "Current Streak": h.get_current_streak(),
+                "Longest Streak": h.get_longest_streak(),
+                "30-Day Rate (%)": h.get_completion_rate(30)
+            })
+        
+        if export_data:
+            df = pd.DataFrame(export_data)
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Habit Data (CSV)",
+                data=csv,
+                file_name=f"habit_space_export_{date.today()}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            st.divider()
+
         for idx, h in enumerate(habits):
             rank = h.get_rank()
             streak = h.get_current_streak()
