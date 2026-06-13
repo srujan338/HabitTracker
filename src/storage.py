@@ -16,7 +16,8 @@ Habits are stored in the 'habits' table in Supabase.
 
 import json
 import os
-from typing import List
+import re
+from typing import List, Optional
 from src.supabase_client import supabase
 
 DATA_FILE = "data/habits.json"
@@ -43,20 +44,39 @@ def save_habits(habits: List[dict]) -> None:
         json.dump(habits, file, indent=2)
 
 def save_habit(username: str, habit_data: dict) -> None:
-    """Save or update a habit in Supabase without relying on upsert."""
-    try:
-        data = {**habit_data, "user_id": username}
+    """Save or update a habit in Supabase with resilience against missing columns."""
+    working_payload = {**habit_data, "user_id": username}
+    missing_columns = set()
+
+    for _ in range(20):
         try:
-            supabase.table("habits").insert(data).execute()
-        except Exception as insert_exc:
-            msg = str(insert_exc)
-            if "duplicate key value violates unique constraint" in msg:
-                supabase.table("habits").update(data).eq("user_id", username).eq("name", data.get("name")).execute()
-            else:
+            # Try to insert
+            try:
+                supabase.table("habits").insert(working_payload).execute()
+            except Exception as insert_exc:
+                msg = str(insert_exc)
+                if "duplicate key value violates unique constraint" in msg:
+                    # Update if insert fails due to duplicate
+                    supabase.table("habits").update(working_payload).eq("user_id", username).eq("name", working_payload.get("name")).execute()
+                else:
+                    raise insert_exc
+            return
+        except Exception as e:
+            column = _extract_missing_column(str(e))
+            if not column or column in missing_columns or column not in working_payload:
+                print(f"Error saving habit to Supabase: {e}")
                 raise
-    except Exception as e:
-        print(f"Error saving habit to Supabase: {e}")
-        raise
+            
+            # Remove the problematic column and try again
+            missing_columns.add(column)
+            del working_payload[column]
+
+def _extract_missing_column(error_text: str) -> Optional[str]:
+    """Extract missing column name from PostgREST error messages."""
+    match = re.search(r"Could not find the '([^']+)' column", error_text)
+    if match:
+        return match.group(1)
+    return None
 
 def delete_habit(user_id: str, habit_name: str) -> bool:
     """
