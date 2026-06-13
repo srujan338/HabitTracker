@@ -104,7 +104,7 @@ class Habit:
             "mindfulness": "🧘",
             "creativity": "🎨"
         }
-        return category_emojis.get(self.category, "✅")
+        return category_emojis.get(getattr(self, "category", "lifestyle"), "✅")
     
     # ── Derived Statistics Methods ─────────────────────────────────────────
     # These methods calculate values from the completion data.
@@ -428,24 +428,14 @@ class Habit:
         
         Returns:
             Dictionary with all habit data
-            
-        Example:
-            >>> habit.to_dict()
-            {
-                'name': 'Exercise',
-                'habit_type': 'adopt',
-                'emoji': '🏃',
-                'completions': ['2024-01-15', '2024-01-16'],
-                'created_at': '2024-01-15'
-            }
         """
         return {
-            "name": self.name,
-            "habit_type": self.habit_type,
-            "category": self.category,
+            "name": getattr(self, "name", "Unnamed Habit"),
+            "habit_type": getattr(self, "habit_type", "adopt"),
+            "category": getattr(self, "category", "lifestyle"),
             "emoji": self.emoji,
-            "completions": self.completions,
-            "created_at": self.created_at,
+            "completions": getattr(self, "completions", []),
+            "created_at": getattr(self, "created_at", date.today().isoformat()),
         }
     
     @classmethod

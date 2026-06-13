@@ -602,22 +602,25 @@ def page_today(habits, user: User):
 
     habits_sorted = list(habits)
     for idx, h in enumerate(habits_sorted):
-        key = f"{idx}_{h.name}"
-        completed = h.is_completed_today()
-        streak = h.get_current_streak()
+        h_name = getattr(h, "name", "Unnamed")
+        h_emoji = h.emoji if hasattr(h, "emoji") else "✅"
+        key = f"{idx}_{h_name}"
+        completed = h.is_completed_today() if hasattr(h, "is_completed_today") else False
+        streak = h.get_current_streak() if hasattr(h, "get_current_streak") else 0
         
         col1, col2, col3 = st.columns([6, 2, 2])
         
         with col1:
             status_icon = "✅" if completed else "⬜"
-            st.markdown(f"**{status_icon} {h.emoji} {h.name}**")
+            st.markdown(f"**{status_icon} {h_emoji} {h_name}**")
             if streak > 0:
                 st.caption(f"🔥 {t('dashboard.streak', days=streak)}")
         
         with col2:
             if not completed:
                 if st.button(t("dashboard.checkin_button"), key=f"check_{key}", use_container_width=True, type="primary"):
-                    h.mark_complete()
+                    if hasattr(h, "mark_complete"):
+                        h.mark_complete()
                     # Award XP
                     xp_earned = XP_HABIT_COMPLETION
                     if streak > 0:
@@ -633,7 +636,7 @@ def page_today(habits, user: User):
                     save_user_data()
                     
                     # Show celebration
-                    celebration_effect(f"{h.name} (+{xp_earned} XP)")
+                    celebration_effect(f"{h_name} (+{xp_earned} XP)")
                     
                     if new_achievements:
                         for ach_id in new_achievements:
@@ -649,7 +652,7 @@ def page_today(habits, user: User):
         
         with col3:
             if st.button(t("dashboard.details_button"), key=f"detail_{key}", use_container_width=True):
-                st.session_state.selected_habit = h.name
+                st.session_state.selected_habit = h_name
                 st.session_state.active_page = "Habit Detail"
                 st.rerun()
         
@@ -896,14 +899,15 @@ def page_manage(habits, user: User):
         
         export_data = []
         for h in habits:
+            h_cat = getattr(h, "category", "lifestyle")
             export_data.append({
-                "Name": h.name,
-                "Type": h.habit_type,
-                "Category": CATEGORIES.get(h.category, h.category),
-                "Total Completions": h.get_total_completions(),
-                "Current Streak": h.get_current_streak(),
-                "Longest Streak": h.get_longest_streak(),
-                "30-Day Rate (%)": h.get_completion_rate(30)
+                "Name": getattr(h, "name", "Unknown"),
+                "Type": getattr(h, "habit_type", "adopt"),
+                "Category": CATEGORIES.get(h_cat, h_cat),
+                "Total Completions": h.get_total_completions() if hasattr(h, "get_total_completions") else 0,
+                "Current Streak": h.get_current_streak() if hasattr(h, "get_current_streak") else 0,
+                "Longest Streak": h.get_longest_streak() if hasattr(h, "get_longest_streak") else 0,
+                "30-Day Rate (%)": h.get_completion_rate(30) if hasattr(h, "get_completion_rate") else 0
             })
         
         if export_data:
@@ -919,13 +923,15 @@ def page_manage(habits, user: User):
             st.divider()
 
         for idx, h in enumerate(habits):
-            rank = h.get_rank()
-            streak = h.get_current_streak()
+            rank = h.get_rank() if hasattr(h, "get_rank") else {"label": "Unknown", "color": "#94A3B8", "icon": "—"}
+            streak = h.get_current_streak() if hasattr(h, "get_current_streak") else 0
+            h_name = getattr(h, "name", "Unnamed")
+            h_emoji = h.emoji if hasattr(h, "emoji") else "✅"
             
             c1, c2 = st.columns([8, 2])
             
             with c1:
-                st.markdown(f"**{h.emoji} {h.name}**")
+                st.markdown(f"**{h_emoji} {h_name}**")
                 streak_label = f"{t('dashboard.streak', days=streak)}"
                 st.markdown(
                     f'<div style="font-size: 14px; color: var(--text2); margin-top: 2px;">'
@@ -935,10 +941,10 @@ def page_manage(habits, user: User):
                 )
             
             with c2:
-                if st.button(t("habits.remove_button"), key=f"del_{idx}_{h.name}", type="secondary"):
-                    delete_habit(habits, h.name)
-                    db_delete_habit(user.username, h.name)
-                    st.success(t("habits.removed_success", name=h.name))
+                if st.button(t("habits.remove_button"), key=f"del_{idx}_{h_name}", type="secondary"):
+                    delete_habit(habits, h_name)
+                    db_delete_habit(user.username, h_name)
+                    st.success(t("habits.removed_success", name=h_name))
                     save_data()
                     st.rerun()
             
@@ -951,7 +957,7 @@ def page_manage(habits, user: User):
 
 def page_detail(habits, name):
     """Detailed view for a single habit."""
-    habit = next((h for h in habits if h.name == name), None)
+    habit = next((h for h in habits if getattr(h, "name", None) == name), None)
     if not habit:
         st.error("Habit not found.")
         return
@@ -960,15 +966,18 @@ def page_detail(habits, name):
         st.session_state.active_page = "Today"
         st.rerun()
     
-    st.markdown(f"# {habit.emoji} {habit.name}")
+    h_emoji = habit.emoji if hasattr(habit, "emoji") else "✅"
+    h_name = getattr(habit, "name", "Unnamed")
+    
+    st.markdown(f"# {h_emoji} {h_name}")
     
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Current Streak", f"{habit.get_current_streak()} 🔥")
-    c2.metric("Longest Streak", f"{habit.get_longest_streak()} 🏆")
-    c3.metric("Total Completions", f"{habit.get_total_completions()} ✓")
-    c4.metric("30-Day Rate", f"{habit.get_completion_rate(30)}%")
+    c1.metric("Current Streak", f"{habit.get_current_streak() if hasattr(habit, 'get_current_streak') else 0} 🔥")
+    c2.metric("Longest Streak", f"{habit.get_longest_streak() if hasattr(habit, 'get_longest_streak') else 0} 🏆")
+    c3.metric("Total Completions", f"{habit.get_total_completions() if hasattr(habit, 'get_total_completions') else 0} ✓")
+    c4.metric("30-Day Rate", f"{habit.get_completion_rate(30) if hasattr(habit, 'get_completion_rate') else 0}%")
     
-    glass_card_start(f"{habit.emoji} Progress History")
+    glass_card_start(f"{h_emoji} Progress History")
     render_habit_calendar(habit)
     glass_card_end()
     
@@ -976,7 +985,7 @@ def page_detail(habits, name):
     render_streak_visualization(habit)
     glass_card_end()
     
-    rank = habit.get_rank()
+    rank = habit.get_rank() if hasattr(habit, "get_rank") else {"label": "Unknown", "color": "#94A3B8", "icon": "—"}
     st.markdown(f"### Current Rank")
     st.markdown(f'''
     <div style="
@@ -1235,8 +1244,8 @@ def render_user_profile_view(username: str):
             ">
                 <div style="font-size: 32px;">{h.emoji}</div>
                 <div style="flex: 1;">
-                    <div style="font-weight: 700; color: var(--text);">{h.name}</div>
-                    <div style="font-size: 12px; color: var(--text2);">{h.habit_type.title()}ing</div>
+                    <div style="font-weight: 700; color: var(--text);">{getattr(h, "name", "Unknown")}</div>
+                    <div style="font-size: 12px; color: var(--text2);">{getattr(h, "habit_type", "adopt").title()}ing</div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 14px; font-weight: 700; color: var(--accent2);">{rate}% Consistent</div>
