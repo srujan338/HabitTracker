@@ -60,8 +60,8 @@ class Habit:
     habit_type: str
     """Type of habit: 'adopt' (build) or 'quit' (break)"""
     
-    emoji: str
-    """Visual icon for the habit (e.g., '📚', '🏃')"""
+    category: str = "lifestyle"
+    """Category of habit (e.g., 'health', 'lifestyle', 'finance', 'learning', 'productivity', 'mindfulness', 'creativity')"""
     
     # ── Optional Fields with Defaults ──────────────────────────────────────
     completions: List[str] = field(default_factory=list)
@@ -69,6 +69,42 @@ class Habit:
     
     created_at: str = field(default_factory=lambda: date.today().isoformat())
     """Date when the habit was created (ISO format)"""
+
+    _emoji: Optional[str] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self):
+        emoji_to_category = {
+            "❤️": "health", "🏃": "health", "💧": "health", "💪": "health",
+            "🏡": "lifestyle", "☕": "lifestyle",
+            "💰": "finance", "📈": "finance",
+            "📚": "learning", "🎯": "learning", "🎓": "learning", "1️⃣": "learning", "2️⃣": "learning",
+            "⏱️": "productivity", "📋": "productivity", "📵": "productivity",
+            "🧘": "mindfulness", "✍️": "mindfulness",
+            "🎨": "creativity", "💡": "creativity"
+        }
+        if self.category in emoji_to_category:
+            self._emoji = self.category
+            self.category = emoji_to_category[self.category]
+        elif self.category not in ["health", "lifestyle", "finance", "learning", "productivity", "mindfulness", "creativity"]:
+            self._emoji = self.category
+            self.category = "lifestyle"
+        else:
+            self._emoji = None
+
+    @property
+    def emoji(self) -> str:
+        if hasattr(self, "_emoji") and self._emoji:
+            return self._emoji
+        category_emojis = {
+            "health": "❤️",
+            "lifestyle": "🏡",
+            "finance": "💰",
+            "learning": "📚",
+            "productivity": "⏱️",
+            "mindfulness": "🧘",
+            "creativity": "🎨"
+        }
+        return category_emojis.get(self.category, "✅")
     
     # ── Derived Statistics Methods ─────────────────────────────────────────
     # These methods calculate values from the completion data.
@@ -406,6 +442,7 @@ class Habit:
         return {
             "name": self.name,
             "habit_type": self.habit_type,
+            "category": self.category,
             "emoji": self.emoji,
             "completions": self.completions,
             "created_at": self.created_at,
@@ -438,20 +475,38 @@ class Habit:
             if isinstance(c, str)
         ]
         
-        return cls(
+        category = d.get("category")
+        emoji = d.get("emoji")
+        
+        if not category:
+            emoji_to_category = {
+                "❤️": "health", "🏃": "health", "💧": "health", "💪": "health",
+                "🏡": "lifestyle", "☕": "lifestyle",
+                "💰": "finance", "📈": "finance",
+                "📚": "learning", "🎯": "learning", "🎓": "learning", "1️⃣": "learning", "2️⃣": "learning",
+                "⏱️": "productivity", "📋": "productivity", "📵": "productivity",
+                "🧘": "mindfulness", "✍️": "mindfulness",
+                "🎨": "creativity", "💡": "creativity"
+            }
+            category = emoji_to_category.get(emoji, "lifestyle")
+            
+        habit = cls(
             name=d.get("name", "Unnamed Habit"),
             habit_type=d.get("habit_type", "adopt"),
-            emoji=d.get("emoji", "✅"),
+            category=category,
             completions=valid_completions,
             created_at=d.get("created_at", date.today().isoformat()),
         )
+        if emoji:
+            habit._emoji = emoji
+        return habit
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HABIT MANAGEMENT FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
-def add_habit(habits: List[Habit], name: str, habit_type: str, emoji: str) -> tuple:
+def add_habit(habits: List[Habit], name: str, habit_type: str, category: str) -> tuple:
     """
     Create a new habit and add it to the habits list.
     
@@ -462,7 +517,7 @@ def add_habit(habits: List[Habit], name: str, habit_type: str, emoji: str) -> tu
         habits: List of existing habits to add to
         name: Name for the new habit
         habit_type: Either "adopt" or "quit"
-        emoji: Icon for the habit
+        category: Category for the habit
     
     Returns:
         Tuple of (Habit object, error message)
@@ -470,7 +525,7 @@ def add_habit(habits: List[Habit], name: str, habit_type: str, emoji: str) -> tu
         - On failure: (None, "error message")
     
     Example:
-        >>> habit, error = add_habit(habits, "Meditation", "adopt", "🧘")
+        >>> habit, error = add_habit(habits, "Meditation", "adopt", "mindfulness")
         >>> if error:
         ...     print(f"Failed: {error}")
         ... else:
@@ -481,7 +536,7 @@ def add_habit(habits: List[Habit], name: str, habit_type: str, emoji: str) -> tu
         return None, "A habit with that name already exists."
     
     # Create and add the new habit
-    habit = Habit(name=name, habit_type=habit_type, emoji=emoji)
+    habit = Habit(name=name, habit_type=habit_type, category=category)
     habits.append(habit)
     
     return habit, None

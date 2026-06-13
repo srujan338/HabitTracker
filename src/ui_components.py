@@ -252,20 +252,20 @@ def habit_card(habit, show_check: bool = True) -> str:
     checkmark = "✅" if completed else "⬜"
     
     html = f'''
-    <div class="{card_class} fade-in">
+    <div class="{card_class} fade-in" title="Click details for more analytics">
         <div style="font-size: 28px;">{habit.emoji}</div>
         <div style="flex: 1;">
-            <div style="font-weight: 600; color: var(--text); font-size: 16px;">
+            <div style="font-weight: 700; color: var(--text); font-size: 17px; letter-spacing: -0.5px;">
                 {habit.name}
             </div>
-            <div style="font-size: 12px; color: var(--text2); margin-top: 2px;">
+            <div style="font-size: 11px; text-transform: uppercase; color: var(--text2); margin-top: 4px; letter-spacing: 1px;">
                 {rank_badge(rank, text_only=True)}
             </div>
         </div>
-        <div style="text-align: center;">
-            <div style="font-size: 14px; color: var(--text2);">Streak</div>
-            <div style="font-size: 18px; font-weight: 700; color: var(--text);">
-                {streak}🔥
+        <div style="text-align: center; border-left: 1px solid var(--border); padding-left: 16px;">
+            <div style="font-size: 11px; text-transform: uppercase; color: var(--text2); margin-bottom: 2px;">Streak</div>
+            <div style="font-size: 22px; font-weight: 800; color: var(--text); line-height: 1;">
+                {streak}<span style="font-size: 14px;">🔥</span>
             </div>
         </div>
     </div>
@@ -380,79 +380,61 @@ def render_top_nav(habits: list, active_page: str, theme: str):
     Renders the main navigation bar.
     
     The nav bar includes:
-    - App logo with branding
-    - Page navigation buttons
-    - Theme toggle (dark/light mode)
-    - Active state highlighting
-    
-    Args:
-        habits: List of all habits (for potential badge display)
-        active_page: Currently active page name
-        theme: Current theme setting ("Dark" or "Light")
+    - App logo with branding (Left)
+    - Language switcher (Right)
+    - Theme toggle (Right)
+    - Sandwich menu for navigation (Right)
     """
-    # Create 4-column layout: Logo | Navigation | Language | Theme Toggle
-    c1, c2, cl, c3 = st.columns([2, 6, 2, 1])
+    # Using a more robust column layout
+    c1, c2, c3, c4 = st.columns([10, 2, 1, 1])
     
-    # ── COLUMN 1: LOGO ──
     with c1:
         st.markdown(
-            '<h1 style="font-size: 26px; margin:0; font-family:\'Space Grotesk\', sans-serif; '
-            'font-weight: 700;">'
-            'habit<span style="color:var(--accent2);">.</span>space</h1>', 
+            '<h1 style="font-size: 28px; margin:0; font-family:\'Space Grotesk\', sans-serif;">'
+            'habit<span style="color:var(--accent2);">.space</span></h1>', 
             unsafe_allow_html=True
         )
 
-    # ── COLUMN 2: NAVIGATION BUTTONS ──
+    # Language Selector remains visible but outside the menu
     with c2:
-        pages = ["Today", "My Habits", "Events", "Rankings", "Achievements", "Profile"]
-        page_keys = {
-            "Today": "nav.home",
-            "My Habits": "nav.habits",
-            "Events": "nav.events",
-            "Rankings": "nav.rankings",
-            "Achievements": "nav.achievements",
-            "Profile": "nav.profile"
-        }
-        icons = ["🏠", "📋", "🎯", "🏆", "🎖️", "👤"]
-        nav_cols = st.columns(len(pages))
-        
-        for i, (p, icon) in enumerate(zip(pages, icons)):
-            # Determine if this page is currently active
-            is_active = (active_page == p) or (p == "Today" and active_page == "Habit Detail")
-            
-            # Translate label
-            translated_label = t(page_keys[p])
-            
-            # Style active button differently
-            label = f"{icon} **{translated_label}**" if is_active else f"{icon} {translated_label}"
-            
-            # Custom styling for active state
-            if nav_cols[i].button(label, key=f"nav_{p}", use_container_width=True):
-                st.session_state.active_page = p
-                st.rerun()
-
-    # ── COLUMN L: LANGUAGE SELECTOR ──
-    with cl:
         render_language_selector()
 
-    # ── COLUMN 3: THEME TOGGLE ──
+    # Theme Toggle
     with c3:
-        # Show appropriate icon for current theme
         themes = ["Dark", "Light", "Retro"]
         icons = ["🌙", "☀️", "🕹️"]
-        
         current_idx = themes.index(theme)
         next_idx = (current_idx + 1) % len(themes)
-        
-        theme_icon = icons[current_idx]
-        theme_label = themes[next_idx]
-        
-        if st.button(f"{theme_icon}", key="theme_toggle", 
-                     help=f"Switch to {theme_label} theme"):
+        if st.button(f"{icons[current_idx]}", key="theme_toggle_btn"):
             st.session_state.theme = themes[next_idx]
             st.rerun()
+
+    # Sandwich Menu
+    with c4:
+        with st.popover("☰ MENU", use_container_width=True):
+            st.markdown("### 🧭 Navigation")
+            pages = ["Today", "My Habits", "Pet Room", "Events", "Rankings", "Achievements", "Profile"]
+            page_keys = {
+                "Today": "nav.home",
+                "My Habits": "nav.habits",
+                "Pet Room": "nav.pet_room",
+                "Events": "nav.events",
+                "Rankings": "nav.rankings",
+                "Achievements": "nav.achievements",
+                "Profile": "nav.profile"
+            }
+            icons = ["🏠", "📋", "🐾", "🎯", "🏆", "🎖️", "👤"]
+            
+            for p, icon in zip(pages, icons):
+                is_active = (active_page == p) or (p == "Today" and active_page == "Habit Detail")
+                translated_label = t(page_keys[p])
+                label = f"{icon} {translated_label}"
+                
+                if st.button(label, key=f"nav_pop_{p}", use_container_width=True, 
+                             type="primary" if is_active else "secondary"):
+                    st.session_state.active_page = p
+                    st.rerun()
     
-    # Add subtle divider below nav
     st.divider()
 
 
@@ -562,35 +544,52 @@ def render_loading_spinner(text: str = "Loading..."):
 
 
 def render_pet_companion(user_data: dict, habits: list):
-    """Render an Arcane Familiar companion with theme-aware glow and rune motifs."""
-    name = user_data.get("pet_name", "Axiom")
-    mood = user_data.get("pet_mood", "curious")
-    personality = user_data.get("personality_type", "Balanced Builder")
-    completed_today = sum(1 for h in habits if h.is_completed_today())
-    total_habits = len(habits)
+    """Render a floating mythical pet companion from the pet state."""
+    from src.pet_types import PET_TYPES, pet_type_for_code
+    from src.pet_ai import load_state
 
-    if total_habits == 0:
-        message = "Awaiting your first spell. Shape your runes and it will stir."
-    elif completed_today == total_habits:
-        message = "All sigils lit today. The familiar feeds on arcane rhythm."
-    elif completed_today > 0:
-        message = f"{completed_today}/{total_habits} sigils active. Whisper the next rune."
+    name = user_data.get("pet_name") or user_data.get("pet_mood") or "Companion"
+    state = load_state(getattr(user_data, "username", None) or user_data.get("username", "default"))
+    pet = pet_type_for_code(state.pet_type) if state and getattr(state, "pet_type", None) else None
+    if not pet:
+        pet = next(iter(PET_TYPES.values()))
+
+    mood = "Happy"
+    message = pet.greeting
+    if habits:
+        completed_today = sum(1 for h in habits if h.is_completed_today())
+        total = len(habits)
+        if completed_today == total and total:
+            mood = "Excited"
+        elif completed_today > 0:
+            mood = "Curious"
+            
+        completed_cats = [getattr(h, "category", "lifestyle") for h in habits if h.is_completed_today()]
+        if completed_cats:
+            cat_counts = {}
+            for c in completed_cats:
+                cat_counts[c] = cat_counts.get(c, 0) + 1
+            cat_summary = ", ".join([f"{count} {cat.title()}" for cat, count in cat_counts.items()])
+            message = f"Today's wins: {cat_summary}. Thriving!"
     else:
-        message = "The familiar drifts near. One small sigil will rouse it."
+        message = "No habits tracked yet. Let's start a new routine!"
 
-    st.markdown(f"""
-    <div class="arcane-pet" title="{name}: {message}">
-      <div class="arcane-pet-bubble">
-        <strong>{name}</strong><br>
-        {message}
-      </div>
-      <div class="arcane-pet-aura"></div>
-      <div class="arcane-pet-body">
-        <div class="arcane-pet-eye left"></div>
-        <div class="arcane-pet-eye right"></div>
-        <div class="arcane-pet-rune"></div>
-      </div>
-      <div class="arcane-pet-shadow"></div>
-      <div class="arcane-pet-meta">{mood} • {personality}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="arcane-pet" title="{name} - {pet.label}">
+          <div class="arcane-pet-bubble">
+            <strong>{name}</strong><br>
+            {message}
+          </div>
+          <div class="arcane-pet-aura"></div>
+          <div class="arcane-pet-body">
+            <div class="arcane-pet-eye left"></div>
+            <div class="arcane-pet-eye right"></div>
+            <div class="arcane-pet-rune"></div>
+          </div>
+          <div class="arcane-pet-shadow"></div>
+          <div class="arcane-pet-meta">{mood} • {pet.label}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

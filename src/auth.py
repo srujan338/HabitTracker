@@ -100,12 +100,76 @@ class User:
         avg_rate = sum(h.get_completion_rate(30) for h in habits) / total_habits
         quit_habits = sum(1 for h in habits if h.habit_type == "quit")
 
-        self.discipline = _blend_score(self.discipline, today_rate * 100, 0.12)
-        self.consistency = _blend_score(self.consistency, min(avg_streak / 7, 1) * 100, 0.08)
-        self.dedication = _blend_score(self.dedication, min(total_done / (total_habits * 30), 1) * 100, 0.08)
-        self.focus = _blend_score(self.focus, avg_rate, 0.08)
-        self.creativity = _blend_score(self.creativity, min(total_habits / 6, 1) * 100, 0.04)
-        self.resilience = _blend_score(self.resilience, min((avg_streak + quit_habits) / 8, 1) * 100, 0.06)
+        # Calculate performance score for each category
+        categories_habits = {
+            "health": [h for h in habits if getattr(h, "category", None) == "health"],
+            "lifestyle": [h for h in habits if getattr(h, "category", None) == "lifestyle"],
+            "finance": [h for h in habits if getattr(h, "category", None) == "finance"],
+            "learning": [h for h in habits if getattr(h, "category", None) == "learning"],
+            "productivity": [h for h in habits if getattr(h, "category", None) == "productivity"],
+            "mindfulness": [h for h in habits if getattr(h, "category", None) == "mindfulness"],
+            "creativity": [h for h in habits if getattr(h, "category", None) == "creativity"],
+        }
+
+        scores = {}
+        for cat, cat_habits in categories_habits.items():
+            if not cat_habits:
+                continue
+            cat_today = sum(1 for h in cat_habits if h.is_completed_today()) / len(cat_habits)
+            cat_avg_rate = sum(h.get_completion_rate(30) for h in cat_habits) / len(cat_habits)
+            cat_avg_streak = sum(h.get_current_streak() for h in cat_habits) / len(cat_habits)
+            scores[cat] = (cat_today * 40) + (cat_avg_rate * 0.4) + (min(cat_avg_streak / 7, 1) * 20)
+
+        # Update discipline: productivity and health
+        discipline_sources = [scores[c] for c in ["productivity", "health"] if c in scores]
+        if discipline_sources:
+            target_discipline = sum(discipline_sources) / len(discipline_sources)
+            self.discipline = _blend_score(self.discipline, target_discipline, 0.12)
+        else:
+            self.discipline = _blend_score(self.discipline, today_rate * 100, 0.12)
+
+        # Update consistency: lifestyle and mindfulness
+        consistency_sources = [scores[c] for c in ["lifestyle", "mindfulness"] if c in scores]
+        if consistency_sources:
+            target_consistency = sum(consistency_sources) / len(consistency_sources)
+            self.consistency = _blend_score(self.consistency, target_consistency, 0.08)
+        else:
+            self.consistency = _blend_score(self.consistency, min(avg_streak / 7, 1) * 100, 0.08)
+
+        # Update dedication: finance and creativity
+        dedication_sources = [scores[c] for c in ["finance", "creativity"] if c in scores]
+        if dedication_sources:
+            target_dedication = sum(dedication_sources) / len(dedication_sources)
+            self.dedication = _blend_score(self.dedication, target_dedication, 0.08)
+        else:
+            self.dedication = _blend_score(self.dedication, min(total_done / (total_habits * 30), 1) * 100, 0.08)
+
+        # Update focus: learning and productivity
+        focus_sources = [scores[c] for c in ["learning", "productivity"] if c in scores]
+        if focus_sources:
+            target_focus = sum(focus_sources) / len(focus_sources)
+            self.focus = _blend_score(self.focus, target_focus, 0.08)
+        else:
+            self.focus = _blend_score(self.focus, avg_rate, 0.08)
+
+        # Update creativity: creativity and learning
+        creativity_sources = [scores[c] for c in ["creativity", "learning"] if c in scores]
+        if creativity_sources:
+            target_creativity = sum(creativity_sources) / len(creativity_sources)
+            self.creativity = _blend_score(self.creativity, target_creativity, 0.04)
+        else:
+            self.creativity = _blend_score(self.creativity, min(total_habits / 6, 1) * 100, 0.04)
+
+        # Update resilience: health, mindfulness, lifestyle
+        resilience_sources = [scores[c] for c in ["health", "mindfulness", "lifestyle"] if c in scores]
+        if resilience_sources:
+            target_resilience = sum(resilience_sources) / len(resilience_sources)
+            if quit_habits > 0:
+                target_resilience = min(100, target_resilience + 10)
+            self.resilience = _blend_score(self.resilience, target_resilience, 0.06)
+        else:
+            self.resilience = _blend_score(self.resilience, min((avg_streak + quit_habits) / 8, 1) * 100, 0.06)
+
         self.total_streak_days = int(sum(h.get_current_streak() for h in habits))
     
     def get_rank_info(self) -> dict:

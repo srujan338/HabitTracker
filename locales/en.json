@@ -24,7 +24,7 @@
   "onboarding.setup_complete": "Setup complete. Your dashboard is ready.",
   "dashboard.title": "Your Progress",
   "dashboard.today_tasks": "Today's Tasks",
-  "dashboard.no_habits": "No habits yet! Go to 'My Habits' to create your first habit and start your journey.",
+  "dashboard.no_habits": "No habits yet! Go to 'My Habits' to create your first habit and start your journey!",
   "dashboard.checkin_button": "Check in",
   "dashboard.details_button": "Details",
   "dashboard.streak": "{days} day streak",
@@ -76,6 +76,7 @@
   "achievements.none_yet": "No achievements yet. Keep building habits to earn badges!",
   "nav.home": "Today",
   "nav.habits": "My Habits",
+  "nav.pet_room": "Pet Room",
   "nav.events": "Challenges",
   "nav.rankings": "Rankings",
   "nav.achievements": "Achievements",
@@ -127,5 +128,14 @@
   "profile.param_dedication": "Dedication",
   "profile.param_focus": "Focus",
   "profile.param_creativity": "Creativity",
-  "profile.param_resilience": "Resilience"
+  "profile.param_resilience": "Resilience",
+  "pet_room.title": "Pet Room",
+  "pet_room.chat_placeholder": "Say something to your pet",
+  "pet_room.memory_empty": "Chat a bit and your pet will start remembering your context here.",
+  "pet_room.achievements_empty": "No achievements yet. Keep talking to your pet!",
+  "pet_room.challenge_complete_button": "Claim daily challenge",
+  "pet_room.challenge_done_today": "Challenge claimed today!",
+  "pet_room.xp_label": "XP",
+  "pet_room.level_label": "Level",
+  "pet_room.stage_label": "Stage"
 }

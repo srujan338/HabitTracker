@@ -1,177 +1,76 @@
-# AGENTS.md
+# System Architecture & Development Standards (AGENTS.md) 🤖
 
-# Habit Builder App
-
-## Project Overview
-
-Habit Builder App helps users develop positive habits by tracking daily consistency, streaks, and completion rates.
-
-This project is intended as both a productivity tool and a learning project for software development fundamentals.
+This document outlines the technical architecture, design patterns, and engineering standards governing the **Habit.Space** ecosystem. It serves as a North Star for all "agents" (human or automated) contributing to the codebase.
 
 ---
 
-## Objectives
+## 🏛️ Architectural Blueprint
 
-* Help users build habits through consistent tracking.
-* Provide meaningful progress insights.
-* Maintain a simple and intuitive user experience.
-* Serve as a beginner-friendly codebase.
+The system follows a modified **Model-View-Controller (MVC)** pattern optimized for the reactive nature of Streamlit.
 
----
-
-## System Architecture
-
-```text
-User
- ↓
-Habit Management Layer
- ↓
-Progress Tracking Layer
- ↓
-Storage Layer
- ↓
-JSON Database
+```mermaid
+graph TD
+    User((User)) <--> View[Streamlit Frontend]
+    View <--> Controller[App Orchestrator: main.py]
+    Controller <--> Model[Business Logic: src/habits.py]
+    Controller <--> Auth[Auth Service: src/auth.py]
+    Model <--> Persistence[Storage Layer: src/storage.py]
+    Persistence <--> DB[(Supabase / JSON)]
 ```
 
----
+### 1. Presentation Layer (`src/ui_components.py`)
+- **Atomic Design**: Reusable, stateless components.
+- **Themes**: CSS-driven visual modules (Cyberpunk, Retro, Light).
+- **Reactive UI**: Immediate feedback loops using Streamlit session state.
 
-## Core Features
+### 2. Logic Layer (`src/habits.py`, `src/auth.py`)
+- **Domain Modeling**: Data classes for Habits, Users, and Events.
+- **Gamification Logic**: Mathematical algorithms for XP calculation and trait blending.
+- **Stateless Analysis**: Pure functions for calculating streaks and completion rates.
 
-### Habit Management
-
-* Create habits
-* View habits
-* Update habits
-* Delete habits
-
-### Progress Tracking
-
-* Daily completion tracking
-* Streak calculation
-* Completion statistics
-
-### Analytics
-
-* Longest streak
-* Completion percentage
-* Active habit count
+### 3. Data Layer (`src/storage.py`)
+- **Resilient Persistence**: Graceful fallback between Supabase (Cloud) and Local JSON.
+- **Schema Resilience**: Automated column-stripping for mismatched database schemas.
 
 ---
 
-## Habit Data Structure
+## 📜 Engineering Standards
 
-```python
-{
-    "id": 1,
-    "name": "Exercise",
-    "frequency": "Daily",
-    "current_streak": 5,
-    "longest_streak": 12,
-    "completed_today": False
-}
-```
+### **Clean Code Principles**
+- **Single Responsibility**: Each module and function handles exactly one task.
+- **Type Hinting**: All functions must use Python type hints for clarity and IDE support.
+- **Docstrings**: Google-style docstrings are required for all public methods.
 
----
+### **Coding Style**
+- **PEP 8 Compliance**: Strict adherence to the standard Python style guide.
+- **Naming Conventions**: 
+  - Variables/Functions: `snake_case`
+  - Classes: `PascalCase`
+  - Constants: `SCREAMING_SNAKE_CASE`
 
-## Coding Standards
-
-### General Rules
-
-* Follow PEP 8.
-* Use meaningful names.
-* Keep functions focused on one responsibility.
-* Avoid duplicated logic.
-* Write readable code.
-
-### Function Naming
-
-```python
-def add_habit():
-    pass
-
-def complete_habit():
-    pass
-
-def calculate_streak():
-    pass
-```
+### **Testing Protocol**
+- **Unit Tests**: Mandatory for all logic in `src/`.
+- **Regression Testing**: `pytest` must pass before any deployment or pull request.
+- **Mocking**: Use `pytest-mock` for database and external API calls.
 
 ---
 
-## Suggested Project Structure
+## 🛠️ Automated Orchestration (The "Agent" Workflow)
 
-```text
-habit-builder/
-│
-├── main.py
-├── habits.json
-├── README.md
-├── USER_MANUAL.md
-├── AGENTS.md
-│
-├── src/
-│   ├── habits.py
-│   ├── statistics.py
-│   ├── storage.py
-│   └── utils.py
-│
-└── assets/
-```
+When modifying this codebase, the following workflow is expected:
+1. **Research**: Map dependencies and verify current behavior.
+2. **Strategy**: Propose architectural changes before implementation.
+3. **Implementation**: Surgical updates followed by immediate linting.
+4. **Validation**: Run existing tests AND add new ones for the fix/feature.
 
 ---
 
-## Testing Requirements
+## 🔮 Future Roadmap
 
-Verify:
-
-* Habit creation
-* Habit deletion
-* Daily completion tracking
-* Streak calculations
-* Statistics generation
-* Data persistence
+- **API Layer**: Transitioning to a FastAPI backend for mobile support.
+- **AI Integration**: Predictive analytics for habit fatigue detection.
+- **Social Graph**: Peer-to-peer challenge orchestration.
 
 ---
 
-## Future Enhancements
-
-### Version 2
-
-* Categories
-* Weekly goals
-* Monthly reports
-
-### Version 3
-
-* User authentication
-* Cloud synchronization
-
-### Version 4
-
-* Mobile application
-
-### Version 5
-
-* AI-powered habit recommendations
-
----
-
-## Development Principles
-
-1. **Beginner Friendly**: Keep code accessible to learners.
-2. **Python First**: Standardize on Python.
-3. **PEP8 Compliance**: Follow Python style guides strictly.
-4. **JSON Storage**: Use JSON for data persistence.
-5. **Modular Design**: Build small, focused functions.
-6. **Minimal Dependencies**: Prioritize the standard library.
-7. **Readability Focused**: Clarity over optimization.
-8. **Documentation First**: Document every feature and change.
-
----
-
-## Contribution Guidelines
-
-* Keep features beginner-friendly.
-* Update documentation when changing functionality.
-* Write descriptive commit messages.
-* Test before submitting pull requests.
+**Maintaining the highest standards of software craftsmanship.**

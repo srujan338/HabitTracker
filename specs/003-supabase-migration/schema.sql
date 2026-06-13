@@ -38,6 +38,7 @@ CREATE TABLE public.habits (
     user_id TEXT REFERENCES public.users(username) ON DELETE CASCADE NOT NULL,
     name TEXT NOT NULL,
     habit_type TEXT NOT NULL,
+    category TEXT DEFAULT 'lifestyle',
     emoji TEXT NOT NULL,
     completions JSONB DEFAULT '[]'::jsonb,
     created_at DATE DEFAULT CURRENT_DATE,

@@ -13,6 +13,7 @@ def test_habit_to_dict():
     expected = {
         "name": "Exercise",
         "habit_type": "adopt",
+        "category": "health",
         "emoji": "💪",
         "completions": ["2026-06-09"],
         "created_at": date.today().isoformat()
