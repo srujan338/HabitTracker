@@ -60,7 +60,20 @@ from src.auth import (
     check_achievements, ACHIEVEMENTS,
     XP_HABIT_COMPLETION, XP_STREAK_BONUS
 )
-from src.ui_components import render_top_nav
+from src.ui_components import (
+    render_top_nav,
+    glass_card_start,
+    glass_card_end,
+    rank_badge,
+    render_stats_cards,
+    celebration_effect,
+    motivation_message,
+    render_empty_state,
+    get_streak_flame_emoji,
+    streak_display,
+    habit_card,
+    progress_ring,
+)
 from src.calendars import render_global_calendar, render_habit_calendar, render_streak_visualization
 from src.companion_widget import render_companion
 
@@ -219,9 +232,6 @@ def init_app():
 
     if "onboarding_completed" not in st.session_state:
         st.session_state.onboarding_completed = False
-
-    if "pet_room" not in st.session_state:
-        st.session_state.pet_room = False
 
     set_active_language(st.session_state.get("app_language", DEFAULT_LANGUAGE))
 
@@ -900,8 +910,6 @@ def page_events(user: User):
             if event.id in user.completed_events:
                 st.markdown(f"✅ **{event.name}** - {event.xp_reward} XP earned")
 
-                st.markdown(f"✅ **{event.name}** - {event.xp_reward} XP earned")
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PAGE: RANKINGS (Leaderboard)
@@ -971,17 +979,21 @@ def page_rankings(user: User):
             </div>
             <div style="font-size: 24px;">{player_rank['icon']}</div>
             <div style="flex: 1;">
-                <div style="font-weight: 600; color: var(--text);">
+                <div style="font-weight: 600; color: var(--text); margin-bottom: 4px;">
                     {player.username}
                     {'(You)' if is_current_user else ''}
                 </div>
-                <div style="font-size: 12px; color: var(--text2);">
-                    {player.title} • Level {player.level}
-                </div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-size: 16px; font-weight: 700; color: var(--accent2);">
-                    {player.xp} XP
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text2);">
+                            {player.title} • Level {player.level}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 16px; font-weight: 700; color: var(--accent2);">
+                            {player.xp} XP
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1159,15 +1171,6 @@ def render_profile_page(user: User, habits: list):
             st.rerun()
 
 
-def page_pet_room(user: User):
-    habits = st.session_state.get("habits", [])
-    done = sum(1 for h in habits if h.is_completed_today())
-    total = len(habits)
-    last_active = getattr(user, "last_active", None)
-    from src.pet_dashboard import render_pet_room
-    render_pet_room(user.username, done, total, last_active)
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1189,11 +1192,6 @@ def main():
 
     if not user.onboarding_completed:
         page_onboarding(user)
-        return
-
-    if st.session_state.get("pet_room"):
-        st.session_state.pet_room = False
-        page_pet_room(user)
         return
 
     # ── Render Navigation ──
