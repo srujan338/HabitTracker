@@ -628,11 +628,17 @@ def render_user_status_bar(user: User):
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-size: 28px;">{rank_info['icon']}</span>
             <div>
-                <div style="font-size: 14px; font-weight: 700; color: {rank_info['color']};">
-                    Level {user.level} • {user.title}
-                </div>
-                <div style="font-size: 12px; color: var(--text2);">
-                    {user.xp} / {user.xp_to_next_level} XP
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 20px;">
+                    <div>
+                        <div style="font-size: 14px; font-weight: 700; color: {rank_info['color']};">
+                            {user.title} • Level {user.level}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 12px; color: var(--text2);">
+                            {user.xp} XP
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -937,15 +943,25 @@ def page_rankings(user: User):
         border-radius: var(--radius-xl);
         padding: var(--space-lg);
         margin-bottom: var(--space-xl);
-        text-align: center;
     ">
-        <div style="font-size: 48px; margin-bottom: 8px;">{rank_info['icon']}</div>
-        <div style="font-size: 14px; color: var(--text2);">Your Global Rank</div>
-        <div style="font-size: 36px; font-weight: 700; color: {rank_info['color']};">
-            #{user_position if user_position > 0 else '—'}
+        <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 48px; margin-bottom: 8px;">{rank_info['icon']}</div>
+            <div style="font-size: 14px; color: var(--text2);">Your Global Rank</div>
+            <div style="font-size: 36px; font-weight: 700; color: {rank_info['color']};">
+                #{user_position if user_position > 0 else '—'}
+            </div>
         </div>
-        <div style="font-size: 18px; color: var(--text); margin-top: 8px;">
-            Level {user.level} • {user.title}
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+            <div>
+                <div style="font-size: 14px; color: var(--text2);">
+                    {user.title} • Level {user.level}
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: 700; color: var(--accent2);">
+                    {user.xp} XP
+                </div>
+            </div>
         </div>
     </div>
     ''', unsafe_allow_html=True)
