@@ -917,6 +917,12 @@ def page_events(user: User):
 
 def page_rankings(user: User):
     """Global rankings/leaderboard page."""
+    # ── Handle Profile View ──
+    if st.session_state.get("view_profile"):
+        target_username = st.session_state.get("view_profile")
+        render_user_profile_view(target_username)
+        return
+
     st.markdown(f"# 🏆 {t('rankings.title')}")
     st.caption(t('rankings.subtitle'))
     
@@ -945,9 +951,18 @@ def page_rankings(user: User):
     ''', unsafe_allow_html=True)
     
     # ── Leaderboard ──
-    rankings = get_global_rankings(10)
+    rankings = get_global_rankings(15)
     
     glass_card_start("Top Players")
+    st.caption("Click any player to view their profile")
+
+    # Hidden trigger for selection
+    st.markdown('<div class="pet-trigger-hidden">', unsafe_allow_html=True)
+    selected_user = st.text_input("Selection helper", key="rank_select_trigger")
+    if selected_user:
+        st.session_state.view_profile = selected_user
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
     
     for rank_num, player in rankings:
         player_rank = player.get_rank_info()
@@ -964,16 +979,33 @@ def page_rankings(user: User):
             bg_style = "background: rgba(123, 97, 255, 0.1);"
         
         st.markdown(f'''
-        <div style="
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            border-radius: var(--radius-lg);
-            margin-bottom: 8px;
-            {bg_style}
-            border: 1px solid {'var(--accent2)' if is_current_user else 'var(--border2)'};
-        ">
+        <div 
+            onclick="
+                const inputs = window.parent.document.querySelectorAll('input');
+                for (const input of inputs) {{
+                    if (input.getAttribute('aria-label') === 'Selection helper') {{
+                        input.value = '{player.username}';
+                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        break;
+                    }}
+                }}
+            "
+            style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 16px;
+                border-radius: var(--radius-lg);
+                margin-bottom: 8px;
+                {bg_style}
+                border: 1px solid {'var(--accent2)' if is_current_user else 'var(--border2)'};
+                cursor: pointer;
+                transition: transform 0.2s ease;
+            "
+            onmouseover="this.style.transform='translateX(4px)'"
+            onmouseout="this.style.transform='translateX(0)'"
+        >
             <div style="font-size: 20px; font-weight: 700; color: var(--text); width: 30px;">
                 {'🥇' if rank_num == 1 else '🥈' if rank_num == 2 else '🥉' if rank_num == 3 else f'#{rank_num}'}
             </div>
@@ -1004,6 +1036,106 @@ def page_rankings(user: User):
     # ── Total Players ──
     total_players = len(get_global_rankings(9999))
     st.caption(f"Total players: {total_players}")
+
+
+def render_user_profile_view(username: str):
+    """Detailed profile view for a specific user."""
+    from src.auth import get_user_by_username
+    from src.storage import load_habits
+    from src.habits import Habit
+
+    target_user = get_user_by_username(username)
+    if not target_user:
+        st.error("User not found.")
+        if st.button("← Back to Rankings"):
+            st.session_state.view_profile = None
+            st.rerun()
+        return
+
+    col_back, col_title = st.columns([1, 4])
+    with col_back:
+        if st.button("← Back", use_container_width=True):
+            st.session_state.view_profile = None
+            st.rerun()
+    
+    rank_info = target_user.get_rank_info()
+    
+    st.markdown(f"""
+    <div style="text-align: center; margin-bottom: var(--space-xl);">
+        <div style="font-size: 64px; margin-bottom: 8px;">{rank_info['icon']}</div>
+        <h1 style="margin: 0;">{target_user.username}</h1>
+        <div style="color: {rank_info['color']}; font-weight: 700; font-size: 18px;">
+            {target_user.title} • Level {target_user.level}
+        </div>
+        <div style="color: var(--text2); font-size: 14px; margin-top: 4px;">
+            Building habits since {target_user.created_at}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Traits ──
+    glass_card_start("Character Stats")
+    params = [
+        ("Discipline", target_user.discipline),
+        ("Consistency", target_user.consistency),
+        ("Dedication", target_user.dedication),
+        ("Focus", target_user.focus),
+        ("Creativity", target_user.creativity),
+        ("Resilience", target_user.resilience),
+    ]
+    
+    cols = st.columns(3)
+    for i, (name, value) in enumerate(params):
+        color = "#10B981" if value >= 70 else "#F5A623" if value >= 40 else "#EF4444"
+        with cols[i % 3]:
+            st.markdown(f'''
+            <div style="text-align: center; margin-bottom: 16px;">
+                <div style="font-size: 12px; color: var(--text2);">{name}</div>
+                <div style="font-size: 24px; font-weight: 700; color: {color};">{value}</div>
+            </div>
+            ''', unsafe_allow_html=True)
+    glass_card_end()
+
+    # ── Top 3 Habits ──
+    st.markdown("### 🏆 Top 3 Consistent Habits")
+    raw_habits = load_habits(username)
+    habits = [Habit.from_dict(h) for h in raw_habits]
+    
+    # Sort by completion rate (30 days) and then streak
+    sorted_habits = sorted(habits, key=lambda h: (h.get_completion_rate(30), h.get_current_streak()), reverse=True)
+    top_3 = sorted_habits[:3]
+
+    if not top_3:
+        st.info(f"{username} hasn't started any habits yet.")
+    else:
+        for h in top_3:
+            h_rank = h.get_rank()
+            rate = h.get_completion_rate(30)
+            streak = h.get_current_streak()
+            
+            st.markdown(f'''
+            <div style="
+                background: var(--glass);
+                border: 1px solid {h_rank['color']}44;
+                border-left: 4px solid {h_rank['color']};
+                border-radius: var(--radius-md);
+                padding: 16px;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+            ">
+                <div style="font-size: 32px;">{h.emoji}</div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 700; color: var(--text);">{h.name}</div>
+                    <div style="font-size: 12px; color: var(--text2);">{h.habit_type.title()}ing</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 14px; font-weight: 700; color: var(--accent2);">{rate}% Consistent</div>
+                    <div style="font-size: 12px; color: var(--text2);">{streak} day streak</div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
