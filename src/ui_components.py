@@ -562,35 +562,52 @@ def render_loading_spinner(text: str = "Loading..."):
 
 
 def render_pet_companion(user_data: dict, habits: list):
-    """Render an Arcane Familiar companion with theme-aware glow and rune motifs."""
-    name = user_data.get("pet_name", "Axiom")
-    mood = user_data.get("pet_mood", "curious")
-    personality = user_data.get("personality_type", "Balanced Builder")
-    completed_today = sum(1 for h in habits if h.is_completed_today())
-    total_habits = len(habits)
+    """Render a floating mythical pet companion from the pet state."""
+    from src.pet_types import PET_TYPES, pet_type_for_code
+    from src.pet_ai import load_state
 
-    if total_habits == 0:
-        message = "Awaiting your first spell. Shape your runes and it will stir."
-    elif completed_today == total_habits:
-        message = "All sigils lit today. The familiar feeds on arcane rhythm."
-    elif completed_today > 0:
-        message = f"{completed_today}/{total_habits} sigils active. Whisper the next rune."
+    name = user_data.get("pet_name") or user_data.get("pet_mood") or "Companion"
+    state = load_state(getattr(user_data, "username", None) or user_data.get("username", "default"))
+    pet = pet_type_for_code(state.pet_type) if state and getattr(state, "pet_type", None) else None
+    if not pet:
+        pet = next(iter(PET_TYPES.values()))
+
+    mood = "Happy"
+    message = pet.greeting
+    if habits:
+        completed_today = sum(1 for h in habits if h.is_completed_today())
+        total = len(habits)
+        if completed_today == total and total:
+            mood = "Excited"
+        elif completed_today > 0:
+            mood = "Curious"
+            
+        completed_cats = [getattr(h, "category", "lifestyle") for h in habits if h.is_completed_today()]
+        if completed_cats:
+            cat_counts = {}
+            for c in completed_cats:
+                cat_counts[c] = cat_counts.get(c, 0) + 1
+            cat_summary = ", ".join([f"{count} {cat.title()}" for cat, count in cat_counts.items()])
+            message = f"Today's wins: {cat_summary}. Thriving!"
     else:
-        message = "The familiar drifts near. One small sigil will rouse it."
+        message = "No habits tracked yet. Let's start a new routine!"
 
-    st.markdown(f"""
-    <div class="arcane-pet" title="{name}: {message}">
-      <div class="arcane-pet-bubble">
-        <strong>{name}</strong><br>
-        {message}
-      </div>
-      <div class="arcane-pet-aura"></div>
-      <div class="arcane-pet-body">
-        <div class="arcane-pet-eye left"></div>
-        <div class="arcane-pet-eye right"></div>
-        <div class="arcane-pet-rune"></div>
-      </div>
-      <div class="arcane-pet-shadow"></div>
-      <div class="arcane-pet-meta">{mood} • {personality}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="arcane-pet" title="{name} - {pet.label}">
+          <div class="arcane-pet-bubble">
+            <strong>{name}</strong><br>
+            {message}
+          </div>
+          <div class="arcane-pet-aura"></div>
+          <div class="arcane-pet-body">
+            <div class="arcane-pet-eye left"></div>
+            <div class="arcane-pet-eye right"></div>
+            <div class="arcane-pet-rune"></div>
+          </div>
+          <div class="arcane-pet-shadow"></div>
+          <div class="arcane-pet-meta">{mood} • {pet.label}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )

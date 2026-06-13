@@ -78,32 +78,61 @@ from src.calendars import render_global_calendar, render_habit_calendar, render_
 from src.companion_widget import render_companion
 
 
+CATEGORIES = {
+    "health": "❤️ Health",
+    "lifestyle": "🏡 Lifestyle",
+    "finance": "💰 Finance",
+    "learning": "📚 Learning",
+    "productivity": "⏱️ Productivity",
+    "mindfulness": "🧘 Mindfulness",
+    "creativity": "🎨 Creativity"
+}
+
+def guess_category(name: str) -> str:
+    name_lower = name.lower()
+    if any(w in name_lower for w in ["run", "walk", "exercise", "gym", "workout", "water", "drink", "sleep", "eat", "food", "health", "stretch", "jog", "meds", "vitamin", "diet", "healthy"]):
+        return "health"
+    if any(w in name_lower for w in ["clean", "wake", "bed", "cook", "wash", "shower", "routine", "house", "garden", "dog", "cat", "pet", "habit", "lifestyle", "read news", "social", "talk", "message", "chat", "friend", "call"]):
+        return "lifestyle"
+    if any(w in name_lower for w in ["money", "save", "finance", "budget", "spend", "expense", "invest", "stock", "portfolio", "crypto", "pay", "bill"]):
+        return "finance"
+    if any(w in name_lower for w in ["read", "study", "learn", "book", "course", "practice", "skill", "write code", "programming", "math", "history", "languages", "vocab", "class", "lecture"]):
+        return "learning"
+    if any(w in name_lower for w in ["work", "focus", "productivity", "plan", "organize", "todo", "schedule", "task", "email", "inbox", "project", "meeting"]):
+        return "productivity"
+    if any(w in name_lower for w in ["meditate", "breathe", "breathing", "mindful", "journal", "reflect", "gratitude", "calm", "relax", "yoga"]):
+        return "mindfulness"
+    if any(w in name_lower for w in ["paint", "draw", "creativity", "write", "music", "guitar", "piano", "sing", "craft", "photo", "video", "code project", "design", "hobby"]):
+        return "creativity"
+    return "lifestyle"  # default
+
 STARTER_HABITS = {
     "Health and energy": [
-        ("Drink water after waking", "adopt", "💧"),
-        ("10 minute walk", "adopt", "🏃"),
+        ("Drink water after waking", "adopt", "health"),
+        ("10 minute walk", "adopt", "health"),
     ],
     "Learning and skills": [
-        ("Read 10 pages", "adopt", "📚"),
-        ("Practice one skill block", "adopt", "🎯"),
+        ("Read 10 pages", "adopt", "learning"),
+        ("Practice one skill block", "adopt", "learning"),
     ],
     "Mindfulness": [
-        ("2 minute breathing reset", "adopt", "🧘"),
-        ("Write one reflection", "adopt", "✍️"),
+        ("2 minute breathing reset", "adopt", "mindfulness"),
+        ("Write one reflection", "adopt", "mindfulness"),
     ],
     "Productivity": [
-        ("Plan top 3 tasks", "adopt", "📋"),
-        ("No phone first 20 minutes", "quit", "📵"),
+        ("Plan top 3 tasks", "adopt", "productivity"),
+        ("No phone first 20 minutes", "quit", "productivity"),
     ],
     "Creativity": [
-        ("Make one small thing", "adopt", "🎨"),
-        ("Capture one idea", "adopt", "💡"),
+        ("Make one small thing", "adopt", "creativity"),
+        ("Capture one idea", "adopt", "creativity"),
     ],
     "Social confidence": [
-        ("Send one thoughtful message", "adopt", "💬"),
-        ("Start one small conversation", "adopt", "🤝"),
+        ("Send one thoughtful message", "adopt", "lifestyle"),
+        ("Start one small conversation", "adopt", "lifestyle"),
     ],
 }
+
 
 ONBOARDING_STEPS = [
     {
@@ -433,8 +462,13 @@ def _render_starter_habit_step():
     st.markdown("## Pick your starting habits")
     st.caption("Choose the habits that feel easy enough to begin today.")
 
-    for name, _, emoji in starter_choices:
+    for name, _, category in starter_choices:
         is_selected = name in selected
+        emoji_map = {
+            "health": "❤️", "lifestyle": "🏡", "finance": "💰",
+            "learning": "📚", "productivity": "⏱️", "mindfulness": "🧘", "creativity": "🎨"
+        }
+        emoji = emoji_map.get(category, "✅")
         label = f"{'✓ ' if is_selected else ''}{emoji} {name}"
         if st.button(label, key=f"starter_{name}", use_container_width=True):
             if is_selected:
@@ -484,9 +518,9 @@ def _complete_onboarding(user: User):
 
     apply_onboarding_profile(user, answers)
     for area in focus_areas:
-        for name, habit_type, emoji in STARTER_HABITS.get(area, []):
+        for name, habit_type, category in STARTER_HABITS.get(area, []):
             if name in selected_starters:
-                _, error = add_habit(st.session_state.habits, name, habit_type, emoji)
+                _, error = add_habit(st.session_state.habits, name, habit_type, category)
                 if error is None:
                     user.habits_created += 1
 
@@ -520,7 +554,7 @@ def page_today(habits, user: User):
     # ── Character Stats + Monthly Activity ──
     stats_col, calendar_col = st.columns([4, 6])
     with stats_col:
-        render_user_parameters(user)
+        render_user_parameters(user, habits)
     with calendar_col:
         glass_card_start(t("dashboard.monthly_activity_title"), t("dashboard.monthly_activity_subtitle"))
         render_global_calendar(habits)
@@ -680,8 +714,8 @@ def render_xp_progress(user: User):
     ''', unsafe_allow_html=True)
 
 
-def render_user_parameters(user: User):
-    """Render user parameter stats as a hexagonal radar chart."""
+def render_user_parameters(user: User, habits: list = None):
+    """Render user parameter stats as a hexagonal radar chart with category progress."""
     glass_card_start(t("profile.stats_title"), user.personality_type)
 
     params = [
@@ -728,6 +762,47 @@ def render_user_parameters(user: User):
             </div>
         </div>
         ''', unsafe_allow_html=True)
+
+    if habits:
+        st.markdown("<hr style='border-color: var(--border2); margin: 15px 0;'>", unsafe_allow_html=True)
+        st.markdown(f"#### 📊 Category Breakdown")
+        
+        categories_habits = {cat: [] for cat in CATEGORIES}
+        for h in habits:
+            cat = getattr(h, "category", "lifestyle")
+            if cat not in categories_habits:
+                categories_habits[cat] = []
+            categories_habits[cat].append(h)
+            
+        for cat, cat_habits in categories_habits.items():
+            if not cat_habits:
+                continue
+                
+            completed_today = sum(1 for h in cat_habits if h.is_completed_today())
+            total = len(cat_habits)
+            avg_rate = sum(h.get_completion_rate(30) for h in cat_habits) / total
+            
+            st.markdown(f"""
+            <div style="
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: var(--radius-md);
+                padding: 10px 14px;
+                margin-bottom: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            ">
+                <div>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text);">{CATEGORIES.get(cat, cat.title())}</span>
+                </div>
+                <div style="text-align: right; font-size: 13px; color: var(--text2);">
+                    <span style="font-weight: 700; color: var(--accent2);">{avg_rate:.0f}% rate</span>
+                    <span style="margin: 0 4px;">•</span>
+                    <span>{completed_today}/{total} done</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     
     glass_card_end()
 
@@ -747,23 +822,45 @@ def page_manage(habits, user: User):
         
         with c1:
             name = st.text_input(t("habits.name_label"), 
-                                placeholder=t("habits.name_placeholder"))
+                                placeholder=t("habits.name_placeholder"),
+                                key="habit_name_input")
+            
+            # Simple reactive auto-suggest
+            if "guessed_category" not in st.session_state:
+                st.session_state.guessed_category = "lifestyle"
+            if "prev_name" not in st.session_state:
+                st.session_state.prev_name = ""
+            
+            if name and name != st.session_state.prev_name:
+                st.session_state.guessed_category = guess_category(name)
+                st.session_state.prev_name = name
         
         with c2:
             habit_type = st.selectbox(t("habits.type_label"), ["adopt", "quit"], 
                                      help=t("habits.type_help"))
         
         with c3:
-            emoji = st.selectbox(t("habits.icon_label"), [
-                "🏃", "📚", "🧘", "💪", "🚭", "📵", 
-                "💧", "😴", "🎯", "✍️", "🎨", "🌱"
-            ])
+            category_options = list(CATEGORIES.keys())
+            try:
+                category_index = category_options.index(st.session_state.guessed_category)
+            except ValueError:
+                category_index = 0
+                
+            category = st.selectbox(
+                "Category",
+                options=category_options,
+                format_func=lambda x: CATEGORIES.get(x, x),
+                index=category_index,
+                key="habit_category_select"
+            )
+            # Sync back in case user changes it manually
+            st.session_state.guessed_category = category
         
         if st.button(t("habits.create_button"), type="primary", use_container_width=True):
             if not name or not name.strip():
                 st.error(t("habits.name_required"))
             else:
-                result, error = add_habit(habits, name.strip(), habit_type, emoji)
+                result, error = add_habit(habits, name.strip(), habit_type, category)
                 if error:
                     st.error(error)
                 else:

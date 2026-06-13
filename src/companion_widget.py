@@ -49,6 +49,28 @@ def _reaction_for(state) -> str:
         return "Tap me!"
     pet = pet_type_for_code(state.pet_type)
     mood = _mood_from_pet_state(state)
+    
+    # Check completed habits today by category
+    habits = st.session_state.get("habits", [])
+    completed_cats = [getattr(h, "category", None) for h in habits if h.is_completed_today()]
+    
+    cat_comments = {
+        "health": "Your health stats are growing. Keep caring for your body!",
+        "lifestyle": "Great routine upkeep! Lifestyle consistency is key.",
+        "finance": "Super smart financial tracking. Every habit counts!",
+        "learning": "I love seeing you study. Keep loading that knowledge!",
+        "productivity": "Total focus master! Productivity is peaking.",
+        "mindfulness": "Take a breath. Mindfulness keeps you centered.",
+        "creativity": "Unleashing that creative spark! Awesome work."
+    }
+    
+    import random
+    if completed_cats:
+        chosen_cat = random.choice(completed_cats)
+        cat_comment = cat_comments.get(chosen_cat, "Keep going!")
+    else:
+        cat_comment = None
+        
     reactions = {
         "excited": f"{pet.emoji} Super charged!",
         "happy": f"{pet.emoji} Glad you're here",
@@ -57,6 +79,9 @@ def _reaction_for(state) -> str:
         "sleepy": f"{pet.emoji} *yawn*",
     }
     base = reactions.get(mood, f"{pet.emoji} Ready")
+    if cat_comment:
+        base = f"{pet.emoji} {cat_comment}"
+        
     last_speak = st.session_state.get(SPEAK_KEY)
     if not last_speak:
         st.session_state[SPEAK_KEY] = base
