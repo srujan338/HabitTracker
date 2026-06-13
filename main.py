@@ -566,7 +566,7 @@ def page_today(habits, user: User):
             status_icon = "✅" if completed else "⬜"
             st.markdown(f"**{status_icon} {h.emoji} {h.name}**")
             if streak > 0:
-                st.caption(f"🔥 {streak} {t('dashboard.streak', days=streak)}")
+                st.caption(f"🔥 {t('dashboard.streak', days=streak)}")
         
         with col2:
             if not completed:
@@ -789,8 +789,13 @@ def page_manage(habits, user: User):
             
             with c1:
                 st.markdown(f"**{h.emoji} {h.name}**")
-                streak_label = f"{streak} {t('dashboard.streak', days=streak)}"
-                st.caption(f"{rank_badge(rank, text_only=True)} • {streak_label}")
+                streak_label = f"{t('dashboard.streak', days=streak)}"
+                st.markdown(
+                    f'<div style="font-size: 14px; color: var(--text2); margin-top: 2px;">'
+                    f'{rank_badge(rank, text_only=True)} • {streak_label}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
             
             with c2:
                 if st.button(t("habits.remove_button"), key=f"del_{idx}_{h.name}", type="secondary"):
